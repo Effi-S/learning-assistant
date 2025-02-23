@@ -11,3 +11,5 @@ wheels/
 .env
 thoughts.md
 .langchain.db
+orm/.test.db
+orm/.pacer.db

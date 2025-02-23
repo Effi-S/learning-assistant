@@ -7,6 +7,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 DB_PATH = Path(__file__).parent / ".pacer.db"
+TEST_DB_PATH = Path(__file__).parent / ".test.db"
+if TEST_DB_PATH.exists():
+    os.remove(TEST_DB_PATH)
 
 Base = declarative_base()
 
