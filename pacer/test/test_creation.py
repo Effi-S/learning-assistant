@@ -12,7 +12,6 @@ from pacer.orm.project_orm import Project
 SessionLocal = base.make_session(db_path=base.TEST_DB_PATH)
 
 
-
 # Creating two projects
 def create_projects(session: Session):
     project1 = Project(
@@ -31,7 +30,7 @@ def create_files(session: Session, projects):
     files = [
         File(
             id=str(uuid4()),
-            project_id=projects[0].id,  # Assigning to Project 1
+            project_id=projects[0].id,
             filepath="ai_model.py",
             content="import tensorflow as tf",
             status=FileStatus.CREATED,
@@ -47,7 +46,7 @@ def create_files(session: Session, projects):
         ),
         File(
             id=str(uuid4()),
-            project_id=projects[1].id,  # Assigning to Project 2
+            project_id=projects[1].id,
             filepath="threat_analysis.txt",
             content="Detected vulnerabilities...",
             status=FileStatus.FAILED,
@@ -86,10 +85,10 @@ def test_main():
         # print("Created Files:", files)
 
         project = session.query(Project).filter_by(name="AI Research").first()
-        print(project.files)  # List of FileEntry objects
+        print(project.files)
 
         file_entry = session.query(File).filter_by(filepath="ai_model.py").first()
-        print(file_entry.project_ref)  # Project object
+        print(file_entry.project_ref)
 
         assert len(project.files) == 2
         assert file_entry.project_ref

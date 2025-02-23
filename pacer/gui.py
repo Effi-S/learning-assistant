@@ -6,34 +6,26 @@ from typing import Any
 import streamlit as st
 
 from pacer import services
-from pacer.models.file_model import FileModel
-
-# from pacer import services
-# from pacer.models.file_model import FileModel, FileStatus
+from pacer.models.file_model import FileEntry
 
 st.set_page_config(layout="wide")  # Enables wide mode
-
-tmp_db = {"p1": ["f1", "f2", "f3"], "p2": ["f4", "f5", "f6"], "p3": ["f7", "f8", "f9"]}
 
 
 @st.cache_data
 def list_projects() -> list[str]:
-    return list(tmp_db.keys())
-    # return services.list_projects()
+    return services.list_projects()
 
 
 @st.cache_data
-def list_files(project: str) -> dict[str, FileModel]:
-    return tmp_db[project]
-    return
-    # files = services.list_files(project)
-    # files2status = defaultdict(list)
-    # for file in files:
-    #     files2status[str(file.status)].append(file)
-    # return dict(files2status)
+def list_files(project: str) -> list[FileEntry]:
+    files = services.list_files(project)
+    files2status = defaultdict(list)
+    for file in files:
+        files2status[str(file.status)].append(file)
+    return dict(files2status)
 
 
-def _show_file(file: FileModel):
+def _show_file(file: FileEntry):
     with st.expander(f"{Path(file.filepath).name}"):
         st.text_input("Path:", value=file.filepath)
 
@@ -70,7 +62,7 @@ def _show_file(file: FileModel):
 def display_project_files(project: str = None) -> Any:
     """Display the list of files in a project and available actions."""
     if not project:
-        return st.warning("Please Choose a project in the sidebar") 
+        return st.warning("Please Choose a project in the sidebar")
     c1, c2 = st.columns(2)
     with c1:
         st.subheader(project)
@@ -100,45 +92,47 @@ def display_project_files(project: str = None) -> Any:
         st.markdown("----")
 
 
-
 with st.sidebar:
     # Section Add Project
     if project_name := st.text_input("Add New Project"):
-        # TODO: 
+        # TODO:
         st.success(f"{project_name} Added!")
     st.markdown("---")
-    
+
     # Section: List existing projects
     st.header("Projects:")
     if projects := list_projects():
-         
+
         if selected_project := st.sidebar.selectbox("Select a Project", projects):
             # Subection: Add new Source to project
             st.header("Add source to project")
-            if uploaded_files := st.file_uploader("Choose a file",
-                                                 [".pdf", ".txt", ".png"],
-                                                 accept_multiple_files=True):
+            if uploaded_files := st.file_uploader(
+                "Choose a file", [".pdf", ".txt", ".png"], accept_multiple_files=True
+            ):
                 if st.button("Add"):
                     for file in uploaded_files:
-                        #TODO
+                        # TODO
                         st.info(f"Added file: {file.name}")
                         content = file.read()
-                        st.json({
-                            "filename": file.name,
-                            "filetype": file.type,
-                            "filesize": file.size,
-                            
-                        }, expanded=False)
+                        st.json(
+                            {
+                                "filename": file.name,
+                                "filetype": file.type,
+                                "filesize": file.size,
+                            },
+                            expanded=False,
+                        )
             if url := st.text_input("Enter URL"):
                 # TODO
                 st.info(f"Added URL: {url}")
-                
+
     else:
         st.warning("No projects available. Add a new project to get started.")
 
 
 # Main Section:
 display_project_files(selected_project)
+
 
 def main():
     """ """
