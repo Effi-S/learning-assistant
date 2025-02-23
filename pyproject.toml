@@ -1,20 +1,33 @@
-[project]
-name = "learning-assistant"
+[tool.poetry]
+name = "pacer"
 version = "0.1.0"
-description = "Add your description here"
+description = ""
+authors = ["Effi-S <effi.szt@gmail.com>"]
 readme = "README.md"
-requires-python = ">=3.13"
-dependencies = [
-    "jupyter>=1.1.1",
-    "langchain>=0.3.19",
-    "langchain-chroma>=0.2.2",
-    "langchain-core>=0.3.37",
-    "langchain-mistralai>=0.2.6",
-    "langchain-openai>=0.3.6",
-    "numpy>=1.26.4",
-    "ollama>=0.4.7",
-    "pandas>=2.2.3",
-    "pyperclip>=1.9.0",
-    "python-dotenv>=1.0.1",
-    "streamlit>=1.42.1",
-]
+
+[tool.poetry.dependencies]
+python = "^3.13"
+streamlit = ">=1.42.1"
+jupyter = ">=1.1.1"
+langchain = ">=0.3.19"
+langchain-chroma = ">=0.2.2"
+langchain-core = ">=0.3.37"
+langchain-mistralai = ">=0.2.6"
+langchain-openai = ">=0.3.6"
+numpy = ">=1.26.4"
+ollama = ">=0.4.7"
+pandas = ">=2.2.3"
+poetry = ">=2.1.1"
+pyperclip = ">=1.9.0"
+python-dotenv = "1.0.1"
+sqlalchemy = ">=2.0.38"
+langchain-community = "^0.3.18"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+build_command = "pip install poetry && poetry build"
+
+[tool.poetry.scripts]
+# pacer-cli = 'pacer.cli:cli'
+pacer-gui = 'pacer.gui:main'
