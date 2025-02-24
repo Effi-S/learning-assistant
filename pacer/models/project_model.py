@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class ProjectBase(BaseModel):
-    id: UUID
+    id: UUID = None
     name: str
 
 

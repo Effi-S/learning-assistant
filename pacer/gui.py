@@ -7,6 +7,8 @@ import streamlit as st
 
 from pacer import services
 from pacer.models.file_model import FileEntry
+from pacer.models.project_model import ProjectData
+from pacer.orm.file_orm import FileStatus
 
 st.set_page_config(layout="wide")  # Enables wide mode
 
@@ -19,10 +21,7 @@ def list_projects() -> list[str]:
 @st.cache_data
 def list_files(project: str) -> list[FileEntry]:
     files = services.list_files(project)
-    files2status = defaultdict(list)
-    for file in files:
-        files2status[str(file.status)].append(file)
-    return dict(files2status)
+    return files
 
 
 def _show_file(file: FileEntry):
@@ -63,21 +62,31 @@ def display_project_files(project: str = None) -> Any:
     """Display the list of files in a project and available actions."""
     if not project:
         return st.warning("Please Choose a project in the sidebar")
-    c1, c2 = st.columns(2)
-    with c1:
-        st.subheader(project)
-    with c2:
-        if st.button(":arrows_counterclockwise: Refresh Data"):
-            st.cache_data.clear()
-    files2status = list_files(project)
-    # st.json(files2status)
-    if not files2status:
-        return st.warning("No files found in this project.")
+    st.subheader(project)
 
-    proceral_tab, analogous_tab, conceptual_tab, evidence_tab, reference_tab = st.tabs(
-        ["Proceral", "Analogous", "Conceptual ", "Evidence", "Reference"]
+    files = list_files(project)
+    if not files:
+        return st.warning("No files found in this project.")
+    for fl in files:
+        fl: FileEntry
+        c1, c2, c3 = st.columns([0.8, 0.1, 0.1])
+        with c1:
+            st.markdown(f"`{Path(fl.filepath).name}`")
+        if fl.status == FileStatus.CREATED:
+            with c2:
+                if st.button(":arrows_counterclockwise:", key=f"{fl.id}_button"):
+                    # TODO:
+                    st.toast("Not implemented yet")
+            with c3:
+                if st.button(":wastebasket:", key=f"{fl.id}_remove_button"):
+                    services.delete_file(fl)
+                    st.cache_data.clear()
+                    st.rerun()
+    procederal_tab, analogous_tab, conceptual_tab, evidence_tab, reference_tab = (
+        st.tabs(["Procederal", "Analogous", "Conceptual ", "Evidence", "Reference"])
     )
-    with proceral_tab:
+
+    with procederal_tab:
         st.markdown("----")
     with analogous_tab:
         st.markdown("----")
@@ -95,36 +104,48 @@ def display_project_files(project: str = None) -> Any:
 with st.sidebar:
     # Section Add Project
     if project_name := st.text_input("Add New Project"):
-        # TODO:
-        st.success(f"{project_name} Added!")
+        if project_name in list_projects():
+            st.warning(f"Project {project_name} already exists!")
+        else:
+            st.cache_data.clear()
+            services.add_project(project_name)
+            st.success(f"{project_name} Added!")
     st.markdown("---")
 
     # Section: List existing projects
-    st.header("Projects:")
-    if projects := list_projects():
 
-        if selected_project := st.sidebar.selectbox("Select a Project", projects):
-            # Subection: Add new Source to project
-            st.header("Add source to project")
-            if uploaded_files := st.file_uploader(
-                "Choose a file", [".pdf", ".txt", ".png"], accept_multiple_files=True
-            ):
-                if st.button("Add"):
-                    for file in uploaded_files:
-                        # TODO
-                        st.info(f"Added file: {file.name}")
-                        content = file.read()
-                        st.json(
-                            {
-                                "filename": file.name,
-                                "filetype": file.type,
-                                "filesize": file.size,
-                            },
-                            expanded=False,
-                        )
-            if url := st.text_input("Enter URL"):
-                # TODO
-                st.info(f"Added URL: {url}")
+    if selected_project := st.sidebar.selectbox("Select a Project", list_projects()):
+        # Subection: Add new Source to project
+        st.header("Add source to project")
+        if uploaded_files := st.file_uploader(
+            "Choose a file", [".pdf", ".txt", ".png"], accept_multiple_files=True
+        ):
+            if st.button("Add"):
+                entries = [
+                    FileEntry(
+                        filepath=f.name,
+                        project_ref=ProjectData(name=selected_project),
+                        content=f.read(),
+                    )
+                    for f in uploaded_files
+                ]
+                services.add_files(entries)
+                for file in uploaded_files:
+                    st.info(f"Added file: {file.name}")
+
+                    st.json(
+                        {
+                            "filename": file.name,
+                            "filetype": file.type,
+                            "filesize": file.size,
+                        },
+                        expanded=False,
+                    )
+                st.cache_data.clear()
+        if url := st.text_input("Enter URL"):
+            # TODO
+            st.warning("Not implemented yet")
+            # st.info(f"Added URL: {url}")
 
     else:
         st.warning("No projects available. Add a new project to get started.")

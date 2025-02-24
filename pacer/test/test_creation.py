@@ -9,7 +9,8 @@ from pacer.orm import base
 from pacer.orm.file_orm import File, FileStatus
 from pacer.orm.project_orm import Project
 
-SessionLocal = base.make_session(db_path=base.TEST_DB_PATH)
+# SessionLocal = base.make_session(db_path=base.TEST_DB_PATH)
+SessionLocal = base.make_session()
 
 
 # Creating two projects

@@ -23,7 +23,7 @@ class File(Base):
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     project_id = Column(UUID(as_uuid=False), ForeignKey("projects.id"), nullable=False)
-    filepath = Column(String, unique=True, nullable=False)
+    filepath = Column(String, nullable=False)
     content = Column(Text, nullable=False)
     status = Column(Text, default=str(FileStatus.CREATED), nullable=True)
     data = Column(JSON, default=Null, nullable=True)

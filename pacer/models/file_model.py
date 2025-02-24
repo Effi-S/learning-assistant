@@ -10,7 +10,7 @@ from pacer.orm.file_orm import FileStatus
 class FileEntryBase(BaseModel):
     """Pydantic model for FileEntry"""
 
-    id: UUID
+    id: UUID = None
     filepath: str
 
 
@@ -18,7 +18,7 @@ class FileEntry(FileEntryBase):
     content: str
     status: FileStatus = FileStatus.CREATED
     data: Optional[dict] = None
-    project_ref: ProjectData
+    project_ref: ProjectData = Field(default=None)
 
     class Config:
         from_attributes = True  # Enable ORM support
