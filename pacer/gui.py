@@ -67,25 +67,39 @@ def display_project_files(project: str = None) -> Any:
     files = list_files(project)
     if not files:
         return st.warning("No files found in this project.")
+
+    c1, c2 = st.columns([0.8, 0.1])
     for fl in files:
         fl: FileEntry
-        c1, c2, c3 = st.columns([0.8, 0.1, 0.1])
         with c1:
             st.markdown(f"`{Path(fl.filepath).name}`")
-        if fl.status == FileStatus.CREATED:
-            with c2:
-                if st.button(":arrows_counterclockwise:", key=f"{fl.id}_button"):
-                    # TODO:
-                    st.toast("Not implemented yet")
-            with c3:
-                if st.button(":wastebasket:", key=f"{fl.id}_remove_button"):
-                    services.delete_file(fl)
-                    st.cache_data.clear()
-                    st.rerun()
-    procederal_tab, analogous_tab, conceptual_tab, evidence_tab, reference_tab = (
-        st.tabs(["Procederal", "Analogous", "Conceptual ", "Evidence", "Reference"])
+        with c2:
+            if st.button(":wastebasket:", key=f"{fl.id}_remove_button"):
+                services.delete_file(fl)
+                st.cache_data.clear()
+                st.rerun()
+    (
+        summary_tab,
+        procederal_tab,
+        analogous_tab,
+        conceptual_tab,
+        evidence_tab,
+        reference_tab,
+    ) = st.tabs(
+        ["Summary", "Procederal", "Analogous", "Conceptual ", "Evidence", "Reference"]
     )
-
+    with summary_tab:
+        for fl in files:
+            st.subheader(fl.filepath)
+            data = fl.data
+            if data and (summary := data.get("summary")):
+                st.markdown(summary)
+            elif st.button(":arrows_counterclockwise:", key=f"{fl.id}_add_button"):
+                services.add_summary_to_file(fl)
+                st.toast("Added summary to file")
+                st.cache_data.clear()
+                st.markdown(fl.data.get("summary"))
+            st.markdown("----")
     with procederal_tab:
         st.markdown("----")
     with analogous_tab:
@@ -113,8 +127,10 @@ with st.sidebar:
     st.markdown("---")
 
     # Section: List existing projects
+    if not (projects := list_projects()):
+        st.warning("No projects available. Add a new project to get started.")
+    elif selected_project := st.sidebar.selectbox("Select a Project", projects):
 
-    if selected_project := st.sidebar.selectbox("Select a Project", list_projects()):
         # Subection: Add new Source to project
         st.header("Add source to project")
         if uploaded_files := st.file_uploader(
@@ -146,9 +162,6 @@ with st.sidebar:
             # TODO
             st.warning("Not implemented yet")
             # st.info(f"Added URL: {url}")
-
-    else:
-        st.warning("No projects available. Add a new project to get started.")
 
 
 # Main Section:

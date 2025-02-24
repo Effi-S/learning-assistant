@@ -1,13 +1,16 @@
 from itertools import chain
+from pathlib import Path
 from uuid import uuid4
 
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from pacer.models.file_model import FileEntry
 from pacer.models.project_model import ProjectData
 from pacer.orm import base
 from pacer.orm.file_orm import File, FileStatus
 from pacer.orm.project_orm import Project
+from pacer.tools import rag
 
 SessionLocal = base.make_session()
 
@@ -39,7 +42,7 @@ def add_files(file_entries: list[FileEntry]) -> list[File]:
         project = file_entries[0].project_ref
         if not project.id:
             project = session.query(Project).filter_by(name=project.name).first()
-        # TODO:  Assert file does not exist
+
         files = [
             File(
                 id=str(uuid4()),
@@ -50,18 +53,43 @@ def add_files(file_entries: list[FileEntry]) -> list[File]:
             )
             for file_entry in file_entries
         ]
+
         session.add_all(files)
         session.commit()
         return files
 
 
-def delete_file(entry: FileEntry):
+def delete_file(file_entry: FileEntry):
     with SessionLocal() as session:
         session.query(File).filter(
-            (File.project_id == str(entry.project_ref.id))
-            & (File.filepath == entry.filepath)
+            (File.project_id == str(file_entry.project_ref.id))
+            & (File.filepath == file_entry.filepath)
         ).delete(synchronize_session="fetch")
         session.commit()
+
+
+def add_summary_to_file(file_entry: FileEntry):
+    suffix = Path(file_entry.filepath).suffix
+    if suffix in (".txt", ".py"):
+        split = rag.split_text(file_entry.content)
+    elif suffix in (".pdf"):
+        split = rag.read_pdf(file_entry.content)
+    else:
+        raise ValueError(f"Unkown type: `{suffix}`")
+
+    print("Summary:")
+    summary = rag.create_summary(split)
+    print(summary)
+
+    with SessionLocal() as session:
+        file = session.query(File).filter(File.id == str(file_entry.id)).one()
+        if not file.data:
+            file.data = {}
+        file.data["summary"] = summary
+        flag_modified(file, "data")  #  the ORM may not detect changes automatically
+        session.commit()
+
+    def add_(): ...
 
 
 if __name__ == "__main__":
