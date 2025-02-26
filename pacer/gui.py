@@ -101,6 +101,23 @@ def display_project_files(project: str = None) -> Any:
                 st.markdown(fl.data.get("summary"))
             st.markdown("----")
     with procederal_tab:
+        st.subheader("Quiz")
+
+        if not (quiz := services.get_quiz(project)):
+            if st.button(":arrows_counterclockwise:", key=f"{project}_add_quiz_button"):
+                quiz = services.create_quiz(project_name=project)
+        if quiz:
+            for i, q in enumerate(quiz.questions):
+                if choice := st.radio(
+                    f"**{q.question}**", q.options, index=None, key=f"qestion_{i}"
+                ):
+                    if choice == (ans := q.answer):
+                        st.write(":white_check_mark:")
+                    else:
+                        st.write(f":exclamation: Answer: {ans}")
+
+        st.markdown("----")
+        st.subheader("Practice")
         st.markdown("----")
     with analogous_tab:
         st.markdown("----")
@@ -124,6 +141,8 @@ with st.sidebar:
             st.cache_data.clear()
             services.add_project(project_name)
             st.success(f"{project_name} Added!")
+            # st.balloons()
+        project_name = None
     st.markdown("---")
 
     # Section: List existing projects
@@ -162,6 +181,13 @@ with st.sidebar:
             # TODO
             st.warning("Not implemented yet")
             # st.info(f"Added URL: {url}")
+        for _ in range(20):
+            st.write("")
+        if st.button(":wastebasket: delete project"):
+            services.delete_project(selected_project)
+            st.cache_data.clear()
+            st.rerun()
+    st.markdown("---")
 
 
 # Main Section:

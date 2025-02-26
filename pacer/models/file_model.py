@@ -16,7 +16,7 @@ class FileEntryBase(BaseModel):
 
 
 class FileEntry(FileEntryBase):
-    content: str
+    content: str = Field(..., repr=False)
     status: FileStatus = FileStatus.CREATED
     data: Optional[dict] = Field(default_factory=dict)
     project_ref: ProjectData = Field(default=None)

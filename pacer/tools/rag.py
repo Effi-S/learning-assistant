@@ -1,5 +1,4 @@
 import base64
-import io
 import logging
 import subprocess
 import tempfile
@@ -30,14 +29,10 @@ from langchain_community.document_loaders import (
 )
 from langchain_community.vectorstores import Chroma
 from langchain_core.documents.base import Document
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from pacer.config import consts
 
 dotenv.load_dotenv()
-
-DEFAULT_LLM = ChatOpenAI(model="gpt-4o")
-DEFAULT_EMBEDDING = OpenAIEmbeddings(model="text-embedding-3-large")
 
 
 def read_wikipedia(subject: str, load_max_docs: int = 1) -> list[Document]:
@@ -57,7 +52,7 @@ def ask_wiki(
         Out[1]: 'System: A cryptographic hash function is a mathematical algorithm that
                 takes input data of any size and produces a fixed-size output known as a hash value...'
     (Dependency: wikipedia)"""
-    llm = llm or DEFAULT_LLM
+    llm = llm or consts.DEFAULT_LLM
     context = read_wikipedia(query=subject, load_max_docs=load_max_docs)
 
     sys_msg = SystemMessagePromptTemplate.from_template(
@@ -149,12 +144,17 @@ def split_text(text: str) -> list[Document]:
     return split_documents(Document(page_content=text))
 
 
-def insert_split_docs(docs: list[Document], embedding_function=None) -> Chroma:
+def insert_split_docs(
+    docs: list[Document], embedding_function=None, sub_dir: str = None
+) -> Chroma:
     """Inserting previously split documents into a Chroma DB"""
-    embedding_function = embedding_function or DEFAULT_EMBEDDING
+    embedding_function = embedding_function or consts.DEFAULT_EMBEDDING
 
+    persist_directory = consts.ROOT_DIR / ".chroma_persist"
+    if sub_dir:
+        persist_directory /= sub_dir
     db = Chroma.from_documents(
-        docs, embedding_function, persist_directory=f"{consts.ROOT_DIR}/.chroma_persist"
+        docs, embedding_function, persist_directory=persist_directory
     )
 
     return db
@@ -170,7 +170,7 @@ def create_summary(
         >>> ss = split_documents(pages)
         >>> print(create_summary(ss))
     """
-    llm = llm or DEFAULT_LLM
+    llm = llm or consts.DEFAULT_LLM
     chain = load_summarize_chain(llm, chain_type=chain_type)
     ret = chain.invoke(split_documents)
 
@@ -195,7 +195,7 @@ def get_multi_query(question, db, llm=None) -> list[Document]:
     logger.setLevel(logging.INFO)
     # -- -- --
 
-    llm = llm or DEFAULT_LLM
+    llm = llm or consts.DEFAULT_LLM
     retriever_from_llm = MultiQueryRetriever.from_llm(
         retriever=db.as_retriever(), llm=llm
     )
@@ -205,7 +205,7 @@ def get_multi_query(question, db, llm=None) -> list[Document]:
 
 def compress_and_ask(question: str, db, llm=None) -> list[Document]:
     """See: https://python.langchain.com/docs/modules/data_connection/retrievers/contextual_compression/"""
-    llm = llm or DEFAULT_LLM
+    llm = llm or consts.DEFAULT_LLM
 
     # --1-- Compress docs
     compressor = LLMChainExtractor.from_llm(llm)
@@ -223,8 +223,8 @@ def compress_and_ask(question: str, db, llm=None) -> list[Document]:
 def contextual_filter(
     filter_query: str, db, llm=None, embedding_function=None
 ) -> list[Document]:
-    llm = llm or DEFAULT_LLM
-    embedding_function = embedding_function or DEFAULT_EMBEDDING
+    llm = llm or consts.DEFAULT_LLM
+    embedding_function = embedding_function or consts.DEFAULT_EMBEDDING
     embeddings_filter = EmbeddingsFilter(
         embeddings=embedding_function, similarity_threshold=0.76
     )

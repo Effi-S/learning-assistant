@@ -12,7 +12,7 @@ class Project(Base):
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     name = Column(String, unique=True, nullable=False)
-    data = Column(JSON, default=Null, nullable=True)
+    data = Column(JSON, default=dict)
     files = relationship(
         "File", back_populates="project_ref", cascade="all, delete-orphan"
     )

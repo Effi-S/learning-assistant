@@ -26,6 +26,6 @@ class File(Base):
     filepath = Column(String, nullable=False)
     content = Column(Text, nullable=False)
     status = Column(Text, default=str(FileStatus.CREATED), nullable=True)
-    data = Column(JSON, default=Null, nullable=True)
+    data = Column(JSON, default=dict)
 
     project_ref = relationship("Project", back_populates="files")
