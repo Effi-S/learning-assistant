@@ -14,6 +14,16 @@ quiz_prompt = PromptTemplate(
     ),
 )
 
+quiz_append_prompt = PromptTemplate(
+    input_variables=["text"],
+    template=(
+        "Given the following text:\n{text}\n\n"
+        "And the following questions:\n{questions}\n\n"
+        "Add 10 new questions. Each question should have 4-6 options, "
+        "with the correct answer marked clearly."
+    ),
+)
+
 
 class QuizQuestion(BaseModel):
     question: str
@@ -57,3 +67,22 @@ def create_quiz(documents: list[Document], llm=DEFAULT_LLM) -> Quiz:
     chain = quiz_prompt | llm.with_structured_output(Quiz)
 
     return chain.invoke(dict(text=combined_text))
+
+
+def add_questions(documents: list[Document], quiz: Quiz, llm=DEFAULT_LLM) -> Quiz:
+    # -1- Gather sources
+    texts = [doc.page_content for doc in documents]
+    combined_text = "\n".join(texts)
+
+    # -2- structured chain
+    chain = quiz_append_prompt | llm.with_structured_output(Quiz)
+    questions_json = [q.model_dump_json(indent=2) for q in quiz.questions]
+    res: Quiz = chain.invoke(dict(text=combined_text, questions=str(questions_json)))
+
+    # -3- merge (just-in-case)
+    res_questions = {q.question for q in res.questions}
+    for q in quiz.questions:
+        if q.question not in res_questions:
+            res.questions.append(q)
+    quiz.questions = res.questions
+    return res

@@ -13,3 +13,4 @@ thoughts.md
 .langchain.db
 pacer/orm/.test.db
 pacer/orm/.pacer.db
+.ipynb_checkpoints

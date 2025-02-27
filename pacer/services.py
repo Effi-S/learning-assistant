@@ -80,6 +80,7 @@ def delete_file(file_entry: FileEntry):
 
 
 def add_summary_to_file(file_entry: FileEntry):
+    """Adds both to `FileEntry` and `File` (in ORM)"""
     suffix = Path(file_entry.filepath).suffix
     if suffix in (".txt", ".py"):
         split = rag.split_text(file_entry.content)
@@ -102,6 +103,8 @@ def add_summary_to_file(file_entry: FileEntry):
 
 
 def read_sources(sources: list[FileEntry]) -> list[Document]:
+    """Converts FileEntries to LangChain Documents
+    (perhaps this should move to file_entry.py)"""
     suffix2entries = defaultdict(list)
     for entry in sources:
         suffix2entries[Path(entry.filepath).suffix].append(entry)
@@ -116,19 +119,6 @@ def read_sources(sources: list[FileEntry]) -> list[Document]:
     return docs
 
 
-def create_quiz(project_name: str) -> quiz_creater.Quiz:
-    assert project_name
-    with SessionLocal() as session:
-        project = session.query(Project).filter(Project.name == project_name).first()
-        files = list(map(FileEntry.model_validate, project.files))
-        docs = read_sources(files)
-        quiz = quiz_creater.create_quiz(docs)
-        project.data["quiz"] = quiz.model_dump_json(indent=2)
-        flag_modified(project, "data")  #  the ORM may not detect changes automatically
-        session.commit()
-        return quiz
-
-
 def get_quiz(project_name: str) -> quiz_creater.Quiz:
     assert project_name
     with SessionLocal() as session:
@@ -136,6 +126,47 @@ def get_quiz(project_name: str) -> quiz_creater.Quiz:
         q = project.data.get("quiz")
         if q:
             return quiz_creater.Quiz.model_validate_json(q)
+
+
+def create_quiz(project_name: str) -> quiz_creater.Quiz:
+    assert project_name
+    with SessionLocal() as session:
+        project = session.query(Project).filter(Project.name == project_name).first()
+        files = list(map(FileEntry.model_validate, project.files))
+        docs = read_sources(files)
+        if "quiz" in project.data:
+            # Adds new questions
+            quiz = get_quiz(project_name=project_name)
+            quiz = quiz_creater.add_questions(docs, quiz)
+        else:
+            quiz = quiz_creater.create_quiz(docs)
+        project.data["quiz"] = quiz.model_dump_json(indent=2)
+        flag_modified(project, "data")  #  the ORM may not detect changes automatically
+        session.commit()
+        return quiz
+
+
+def create_practice(project_name: str) -> quiz_creater.Quiz:
+    assert project_name
+    with SessionLocal() as session:
+        project = session.query(Project).filter(Project.name == project_name).first()
+        files = list(map(FileEntry.model_validate, project.files))
+        docs = read_sources(files)
+        quiz = quiz_creater.create_quiz(docs)
+        project.data["practice"] = quiz.model_dump_json(indent=2)
+        flag_modified(project, "data")  #  the ORM may not detect changes automatically
+        session.commit()
+        return quiz
+
+
+def get_practice(project_name: str) -> quiz_creater.Quiz:
+    assert project_name
+    with SessionLocal() as session:
+        project = session.query(Project).filter(Project.name == project_name).first()
+        q = project.data.get("practice")
+        if q:
+            return quiz_creater.Quiz.model_validate_json(q)
+
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ class ProjectBase(BaseModel):
 
 
 class ProjectData(ProjectBase):
-    data: Optional[dict] = None
+    data: Optional[dict] = Field(default=None, repr=False)
 
     class Config:
         from_attributes = True  # Enables ORM support

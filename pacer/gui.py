@@ -33,17 +33,6 @@ def _show_file(file: FileEntry):
             st.markdown("---")
             st.markdown(summary)
 
-        if crypto_summary := file.crypto_data.get("crypto_summary"):
-            st.subheader("Crypto Summary:")
-            st.divider()
-            st.markdown(crypto_summary)
-        elif keywords := file.crypto_data.get("filter_keywords"):
-            st.text_input(
-                label="keywords found:",
-                value=" ".join(d.get("name") for d in keywords),
-                key=f"keywords_{file.id}",
-            )
-
         if st.checkbox(f"File Content", key=f"content_checkbox_{file.filepath}"):
             st.code(
                 file.content, line_numbers=True, language=Path(file.filepath).suffix[1:]
@@ -101,24 +90,48 @@ def display_project_files(project: str = None) -> Any:
                 st.markdown(fl.data.get("summary"))
             st.markdown("----")
     with procederal_tab:
-        st.subheader("Quiz")
 
-        if not (quiz := services.get_quiz(project)):
-            if st.button(":arrows_counterclockwise:", key=f"{project}_add_quiz_button"):
-                quiz = services.create_quiz(project_name=project)
-        if quiz:
-            for i, q in enumerate(quiz.questions):
-                if choice := st.radio(
-                    f"**{q.question}**", q.options, index=None, key=f"qestion_{i}"
+        quiz_tab, practice_tab = st.tabs(["Quiz", "Practice"])
+        with quiz_tab:
+
+            if not (quiz := services.get_quiz(project)):
+                if st.button(
+                    ":arrows_counterclockwise:", key=f"{project}_add_quiz_button"
                 ):
-                    if choice == (ans := q.answer):
-                        st.write(":white_check_mark:")
-                    else:
-                        st.write(f":exclamation: Answer: {ans}")
+                    quiz = services.create_quiz(project_name=project)
+            if quiz:
+                friendly_mode = st.checkbox("Friendly mode")
+                choices = []
+                for i, q in enumerate(quiz.questions):
+                    if choice := st.radio(
+                        f"**{q.question}**", q.options, index=None, key=f"qestion_{i}"
+                    ):
+                        if friendly_mode:
+                            if choice == (ans := q.answer):
+                                st.write(":white_check_mark:")
+                            else:
+                                st.write(f":exclamation: Answer: {ans}")
+                    choices.append(choice)
+                if st.button("Make More"):
+                    services.create_quiz(project_name=project)
+                    st.rerun()
 
-        st.markdown("----")
-        st.subheader("Practice")
-        st.markdown("----")
+                if all(choices):
+                    right, total = sum(
+                        1 for q, a in zip(quiz.questions, choices) if q.answer == a
+                    ), len(quiz.questions)
+                    score = right / total
+                    if st.button("See Score"):
+                        (
+                            st.success
+                            if score > 0.7
+                            else st.info if score > 0.5 else st.error
+                        )(f"[{right} / {total}] Score: {score:.0%} ")
+
+            st.markdown("----")
+        with practice_tab:
+
+            st.markdown("----")
     with analogous_tab:
         st.markdown("----")
 

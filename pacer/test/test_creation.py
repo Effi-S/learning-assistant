@@ -15,16 +15,20 @@ SessionLocal = base.make_session()
 
 # Creating two projects
 def create_projects(session: Session):
-    project1 = Project(
-        id=str(uuid4()), name="AI Research", data={"category": "Machine Learning"}
-    )
-    project2 = Project(
-        id=str(uuid4()), name="Cybersecurity Analysis", data={"category": "Security"}
-    )
+    projects = [
+        Project(
+            id=str(uuid4()), name="AI Research 2", data={"category": "Machine Learning"}
+        ),
+        Project(
+            id=str(uuid4()),
+            name="Cybersecurity Analysis 2",
+            data={"category": "Security"},
+        ),
+    ]
 
-    session.add_all([project1, project2])
+    session.add_all(projects)
     session.commit()
-    return project1, project2
+    return projects
 
 
 def create_files(session: Session, projects):
@@ -79,20 +83,28 @@ def create_files(session: Session, projects):
 def test_main():
     with SessionLocal() as session:
 
-        projects = create_projects(session)
-        files = create_files(session, projects)
+        # projects = create_projects(session)
+        # files = create_files(session, projects)
 
         # print("Created Projects:", projects)
         # print("Created Files:", files)
 
-        project = session.query(Project).filter_by(name="AI Research").first()
-        print(project.files)
+        project = session.query(Project).filter_by(name="AI Research 2").first()
+        print([FileEntry.model_validate(f) for f in project.files])
 
         file_entry = session.query(File).filter_by(filepath="ai_model.py").first()
-        print(file_entry.project_ref)
+        print(ProjectData.model_validate(file_entry.project_ref))
 
         assert len(project.files) == 2
         assert file_entry.project_ref
+
+        #  cleanup
+        # project2 = (
+        #     session.query(Project).filter_by(name="Cybersecurity Analysis 2").first()
+        # )
+        # session.delete(project)
+        # session.delete(project2)
+        # session.commit()
 
 
 if __name__ == "__main__":

@@ -17,7 +17,10 @@ Base = declarative_base()
 @lru_cache(1)
 def make_session(db_path: Path = DB_PATH):
     """Create a `Session` class (not the object)"""
-    from pacer.orm import file_orm, project_orm
+    from pacer.orm import (  # So tables created before engine starts
+        file_orm,
+        project_orm,
+    )
 
     engine = create_engine(f"sqlite:///{db_path}")
     Base.metadata.create_all(engine)

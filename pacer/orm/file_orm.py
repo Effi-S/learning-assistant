@@ -16,6 +16,15 @@ class FileStatus(StrEnum):
     FAILED = "failed"
 
 
+class FileType(StrEnum):
+    AUTO = "auto"
+    TEXT = "text"
+    PDF = "pdf"
+    PYTHON = "python"
+    JSON = "json"
+    URL = "URL"
+
+
 class File(Base):
     __tablename__ = "files"
 
@@ -23,6 +32,7 @@ class File(Base):
         UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     project_id = Column(UUID(as_uuid=False), ForeignKey("projects.id"), nullable=False)
+    type = Column(Text, default=FileType.TEXT, nullable=False)
     filepath = Column(String, nullable=False)
     content = Column(Text, nullable=False)
     status = Column(Text, default=str(FileStatus.CREATED), nullable=True)
