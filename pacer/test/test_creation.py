@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from pacer.models.file_model import FileEntry
 from pacer.models.project_model import ProjectData
 from pacer.orm import base
-from pacer.orm.file_orm import File, FileStatus
+from pacer.orm.file_orm import File, FileStatus, FileType
 from pacer.orm.project_orm import Project
 
 # SessionLocal = base.make_session(db_path=base.TEST_DB_PATH)
@@ -89,15 +89,17 @@ def test_main():
         # print("Created Projects:", projects)
         # print("Created Files:", files)
 
-        project = session.query(Project).filter_by(name="AI Research 2").first()
+        project = session.query(Project).filter_by(name="AI Research").first()
         print([FileEntry.model_validate(f) for f in project.files])
 
         file_entry = session.query(File).filter_by(filepath="ai_model.py").first()
         print(ProjectData.model_validate(file_entry.project_ref))
 
+        file_entry = FileEntry.model_validate(file_entry)
         assert len(project.files) == 2
         assert file_entry.project_ref
-
+        if file_entry.type_ != FileType.PYTHON:
+            raise AssertionError(f"{file_entry.type_} != {FileType.PYTHON}")
         #  cleanup
         # project2 = (
         #     session.query(Project).filter_by(name="Cybersecurity Analysis 2").first()

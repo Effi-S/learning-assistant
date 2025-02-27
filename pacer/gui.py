@@ -25,7 +25,7 @@ def list_files(project: str) -> list[FileEntry]:
 
 
 def _show_file(file: FileEntry):
-    with st.expander(f"{Path(file.filepath).name}"):
+    with st.expander(f"{file.title}"):
         st.text_input("Path:", value=file.filepath)
 
         if summary := file.crypto_data.get("summary"):
@@ -61,7 +61,7 @@ def display_project_files(project: str = None) -> Any:
     for fl in files:
         fl: FileEntry
         with c1:
-            st.markdown(f"`{Path(fl.filepath).name}`")
+            st.markdown(f"> {fl.title}")
         with c2:
             if st.button(":wastebasket:", key=f"{fl.id}_remove_button"):
                 services.delete_file(fl)
@@ -79,9 +79,8 @@ def display_project_files(project: str = None) -> Any:
     )
     with summary_tab:
         for fl in files:
-            st.subheader(fl.filepath)
-            data = fl.data
-            if data and (summary := data.get("summary")):
+            st.subheader(fl.title)
+            if fl.data and (summary := fl.data.get("summary")):
                 st.markdown(summary)
             elif st.button(":arrows_counterclockwise:", key=f"{fl.id}_add_button"):
                 services.add_summary_to_file(fl)
@@ -100,7 +99,7 @@ def display_project_files(project: str = None) -> Any:
                 ):
                     quiz = services.create_quiz(project_name=project)
             if quiz:
-                friendly_mode = st.checkbox("Friendly mode")
+                friendly_mode = st.checkbox("Show Answers")
                 choices = []
                 for i, q in enumerate(quiz.questions):
                     if choice := st.radio(
@@ -147,15 +146,15 @@ def display_project_files(project: str = None) -> Any:
 
 with st.sidebar:
     # Section Add Project
-    if project_name := st.text_input("Add New Project"):
-        if project_name in list_projects():
-            st.warning(f"Project {project_name} already exists!")
+    if project_add_name := st.text_input("Add New Project"):
+        if project_add_name in list_projects():
+            st.warning(f"Project {project_add_name} already exists!")
         else:
             st.cache_data.clear()
-            services.add_project(project_name)
-            st.success(f"{project_name} Added!")
+            services.add_project(project_add_name)
+            st.success(f"{project_add_name} Added!")
             # st.balloons()
-        project_name = None
+        project_add_name = None
     st.markdown("---")
 
     # Section: List existing projects
@@ -166,7 +165,7 @@ with st.sidebar:
         # Subection: Add new Source to project
         st.header("Add source to project")
         if uploaded_files := st.file_uploader(
-            "Choose a file", [".pdf", ".txt", ".png"], accept_multiple_files=True
+            "Choose a file", [".pdf", ".txt"], accept_multiple_files=True
         ):
             if st.button("Add"):
                 entries = [
@@ -191,9 +190,9 @@ with st.sidebar:
                     )
                 st.cache_data.clear()
         if url := st.text_input("Enter URL"):
-            # TODO
-            st.warning("Not implemented yet")
-            # st.info(f"Added URL: {url}")
+            services.add_url(url, project_name=selected_project)
+            st.cache_data.clear()
+            st.info(f"Added URL: {url}")
         for _ in range(20):
             st.write("")
         if st.button(":wastebasket: delete project"):

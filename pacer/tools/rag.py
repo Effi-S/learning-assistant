@@ -29,6 +29,7 @@ from langchain_community.document_loaders import (
 )
 from langchain_community.vectorstores import Chroma
 from langchain_core.documents.base import Document
+from langchain_core.vectorstores import VectorStore
 
 from pacer.config import consts
 
@@ -144,16 +145,19 @@ def split_text(text: str) -> list[Document]:
     return split_documents(Document(page_content=text))
 
 
-def insert_split_docs(
-    docs: list[Document], embedding_function=None, sub_dir: str = None
-) -> Chroma:
+def insert_docs(
+    docs: list[Document],
+    embedding_function=None,
+    sub_dir: str = None,
+    vectorsore: VectorStore = Chroma,
+) -> VectorStore:
     """Inserting previously split documents into a Chroma DB"""
     embedding_function = embedding_function or consts.DEFAULT_EMBEDDING
 
-    persist_directory = consts.ROOT_DIR / ".chroma_persist"
+    persist_directory = consts.ROOT_DIR / f".chroma_persist"
     if sub_dir:
         persist_directory /= sub_dir
-    db = Chroma.from_documents(
+    db = vectorsore.from_documents(
         docs, embedding_function, persist_directory=persist_directory
     )
 
@@ -175,7 +179,7 @@ def create_summary(
     ret = chain.invoke(split_documents)
 
     # ret has `input_documents` as well but we already have that,
-    # seems safe to returning the output_text only
+    # seems safe to return the output_text only
     # Maybe I missed something.
     return ret["output_text"]
 
@@ -186,7 +190,7 @@ def get_multi_query(question, db, llm=None) -> list[Document]:
     Example usage:
         >>> pages = read_pdf('example.pdf')
         >>> ss = split_documents(pages)
-        >>> db = insert_split_docs(ss)
+        >>> db = insert_docs(ss)
         >>> print(get_multi_query("What is the author's name?", db=db))
     """
     # -- verbose multi-query --
@@ -204,35 +208,19 @@ def get_multi_query(question, db, llm=None) -> list[Document]:
 
 
 def compress_and_ask(question: str, db, llm=None) -> list[Document]:
-    """See: https://python.langchain.com/docs/modules/data_connection/retrievers/contextual_compression/"""
+    """See: https://python.langchain.com/docs/how_to/contextual_compression/"""
     llm = llm or consts.DEFAULT_LLM
 
     # --1-- Compress docs
+
     compressor = LLMChainExtractor.from_llm(llm)
-    retriever = ContextualCompressionRetriever(
+    compression_retriever = ContextualCompressionRetriever(
         base_retriever=db.as_retriever(), base_compressor=compressor
     )
 
-    compressed_docs = retriever.get_relevant_documents(question)
+    # --2-- Ask the compressקג docs a question
+    compressed_docs = compression_retriever.invoke(question)
 
-    # --2-- Ask the compress docs a question
-
-    return compressed_docs
-
-
-def contextual_filter(
-    filter_query: str, db, llm=None, embedding_function=None
-) -> list[Document]:
-    llm = llm or consts.DEFAULT_LLM
-    embedding_function = embedding_function or consts.DEFAULT_EMBEDDING
-    embeddings_filter = EmbeddingsFilter(
-        embeddings=embedding_function, similarity_threshold=0.76
-    )
-    retriever = ContextualCompressionRetriever(
-        base_retriever=db.as_retriever(), base_compressor=embeddings_filter
-    )
-
-    compressed_docs = retriever.get_relevant_documents(filter_query)
     return compressed_docs
 
 

@@ -10,7 +10,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from pacer.models.file_model import FileEntry
 from pacer.models.project_model import ProjectData
 from pacer.orm import base
-from pacer.orm.file_orm import File, FileStatus
+from pacer.orm.file_orm import File, FileStatus, FileType
 from pacer.orm.project_orm import Project
 from pacer.quiz import quiz_creater
 from pacer.tools import rag
@@ -49,6 +49,7 @@ def add_files(file_entries: list[FileEntry]) -> list[File]:
         files = [
             File(
                 id=str(uuid4()),
+                type=file_entry.type_,
                 project_id=project.id,
                 filepath=file_entry.filepath,
                 content=file_entry.content,
@@ -60,6 +61,21 @@ def add_files(file_entries: list[FileEntry]) -> list[File]:
         session.add_all(files)
         session.commit()
         return files
+
+
+def add_url(url: str, project_name: str) -> list[File]:
+    docs = rag.read_url(url)
+    entries = [
+        FileEntry(
+            content=doc.page_content,
+            filepath=url,
+            type=FileType.URL,
+            data={"title": doc.metadata["title"]},
+            project_ref=ProjectData(name=project_name),
+        )
+        for doc in docs
+    ]
+    return add_files(entries)
 
 
 def delete_project(project_name: str):
@@ -107,7 +123,7 @@ def read_sources(sources: list[FileEntry]) -> list[Document]:
     (perhaps this should move to file_entry.py)"""
     suffix2entries = defaultdict(list)
     for entry in sources:
-        suffix2entries[Path(entry.filepath).suffix].append(entry)
+        suffix2entries[entry.type_].append(entry)
     pdf_entries, text_entries = suffix2entries[".pdf"], suffix2entries[".txt"]
 
     docs = []
@@ -166,7 +182,6 @@ def get_practice(project_name: str) -> quiz_creater.Quiz:
         q = project.data.get("practice")
         if q:
             return quiz_creater.Quiz.model_validate_json(q)
-
 
 
 if __name__ == "__main__":

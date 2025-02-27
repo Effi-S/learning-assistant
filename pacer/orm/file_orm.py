@@ -8,6 +8,8 @@ from sqlalchemy.orm import relationship
 
 from pacer.orm.base import Base
 
+_suffix_map = {}
+
 
 class FileStatus(StrEnum):
     CREATED = "Created"
@@ -17,12 +19,31 @@ class FileStatus(StrEnum):
 
 
 class FileType(StrEnum):
+    """
+    Register a suffix by by giving a tuple, e.g:
+        TEXT = ("text", ".txt", ".md")
+        will register ".txt" and ".md" as the suffixes for text
+    """
+
     AUTO = "auto"
-    TEXT = "text"
-    PDF = "pdf"
-    PYTHON = "python"
-    JSON = "json"
+    TEXT = ("text", ".txt")
+    PDF = ("pdf", ".pdf")
+    PYTHON = ("python", ".py")
+    JSON = ("json", ".json")
+    MARKDOWN = ("markdown", ".md")
     URL = "URL"
+
+    def __new__(cls, value, *suffixes):
+        obj = str.__new__(cls, value)
+        obj._value_ = value
+        obj.suffix = suffixes[0] if suffixes else None
+        for suffix in suffixes:
+            _suffix_map[suffix] = value
+        return obj
+
+    @classmethod
+    def from_suffix(cls, suffix):
+        return cls(_suffix_map.get(suffix, cls.URL))
 
 
 class File(Base):
