@@ -1,16 +1,29 @@
+import io
 import json
+import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
 import streamlit as st
+from IPython import get_ipython
+from IPython.core.interactiveshell import InteractiveShell
+
+# Initialize an IPython shell
+from streamlit.components.v1 import html
 
 from pacer import services
 from pacer.models.file_model import FileEntry
 from pacer.models.project_model import ProjectData
 from pacer.orm.file_orm import FileStatus
+from pacer.tools import interactive_code
 
 st.set_page_config(layout="wide")  # Enables wide mode
+
+if "edit_toggles" not in st.session_state:
+    st.session_state["edit_toggles"] = {}
+
+_edit_toggles = st.session_state["edit_toggles"]
 
 
 @st.cache_data
@@ -30,7 +43,7 @@ def _show_file(file: FileEntry):
 
         if summary := file.crypto_data.get("summary"):
             st.header("Summary:")
-            st.markdown("---")
+            st.divider()
             st.markdown(summary)
 
         if st.checkbox(f"File Content", key=f"content_checkbox_{file.filepath}"):
@@ -67,6 +80,7 @@ def display_project_files(project: str = None) -> Any:
                 services.delete_file(fl)
                 st.cache_data.clear()
                 st.rerun()
+
     (
         summary_tab,
         procederal_tab,
@@ -74,9 +88,19 @@ def display_project_files(project: str = None) -> Any:
         conceptual_tab,
         evidence_tab,
         reference_tab,
+        notes_tab,
     ) = st.tabs(
-        ["Summary", "Procederal", "Analogous", "Conceptual ", "Evidence", "Reference"]
+        [
+            "Summary",
+            "Procederal",
+            "Analogous",
+            "Conceptual ",
+            "Evidence",
+            "Reference",
+            "Notes",
+        ]
     )
+
     with summary_tab:
         for fl in files:
             st.subheader(fl.title)
@@ -86,8 +110,8 @@ def display_project_files(project: str = None) -> Any:
                 services.add_summary_to_file(fl)
                 st.toast("Added summary to file")
                 st.cache_data.clear()
-                st.markdown(fl.data.get("summary"))
-            st.markdown("----")
+                st.rerun()
+            st.divider()
     with procederal_tab:
 
         quiz_tab, practice_tab = st.tabs(["Quiz", "Practice"])
@@ -127,21 +151,54 @@ def display_project_files(project: str = None) -> Any:
                             else st.info if score > 0.5 else st.error
                         )(f"[{right} / {total}] Score: {score:.0%} ")
 
-            st.markdown("----")
+            st.divider()
         with practice_tab:
+            ...
+            # cells = services.get_codes(project_name=project)
+            # if not cells:
+            #     cells = services.create_cells(project_name=project)
+            # for cell in cells:
+            #     interactive_code.interactive_code(cell)
 
-            st.markdown("----")
+            st.divider()
     with analogous_tab:
-        st.markdown("----")
+        st.divider()
 
     with conceptual_tab:
-        st.markdown("----")
+        st.divider()
 
     with evidence_tab:
-        st.markdown("----")
+        st.divider()
 
     with reference_tab:
-        st.markdown("----")
+        st.divider()
+
+    with notes_tab:
+        note = st.text_area("Write your note here:")
+        if st.button("Add Note") and note.strip():
+            services.add_note(note, selected_project)
+            st.success("Note added!")
+            st.cache_data.clear()
+
+        st.divider()
+        st.markdown("**Your Notes:**\n\n")
+
+        for i, note in enumerate(services.get_notes(selected_project), 1):
+            with st.expander(f"Note {i}"):
+                _c1, _c2 = st.columns([0.9, 0.1])
+                with _c2:
+                    if st.button(f":pencil:", key=f"del_{i}"):
+                        _edit_toggles[i] = not _edit_toggles.get(i, False)
+                if _edit_toggles.get(i):
+                    with _c1:
+                        note_edit = st.text_area(label="edit", value=note.content)
+                        if st.button("Update", key=f"update_note_{i}"):
+                            services.update_note(note, note_edit)
+                            _edit_toggles[i] = False
+                            st.rerun()
+                else:
+                    with _c1:
+                        st.markdown(note.content)
 
 
 with st.sidebar:
@@ -155,7 +212,7 @@ with st.sidebar:
             st.success(f"{project_add_name} Added!")
             # st.balloons()
         project_add_name = None
-    st.markdown("---")
+    st.divider()
 
     # Section: List existing projects
     if not (projects := list_projects()):
@@ -189,17 +246,21 @@ with st.sidebar:
                         expanded=False,
                     )
                 st.cache_data.clear()
-        if url := st.text_input("Enter URL"):
+        with st.form("enter_url_form"):
+            url = st.text_input("Enter URL")
+            submitted = st.form_submit_button()
+        if submitted and url:
             services.add_url(url, project_name=selected_project)
             st.cache_data.clear()
             st.info(f"Added URL: {url}")
+
         for _ in range(20):
             st.write("")
         if st.button(":wastebasket: delete project"):
             services.delete_project(selected_project)
             st.cache_data.clear()
             st.rerun()
-    st.markdown("---")
+    st.divider()
 
 
 # Main Section:

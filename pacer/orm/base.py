@@ -6,8 +6,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-DB_PATH = Path(__file__).parent / ".pacer.db"
-TEST_DB_PATH = Path(__file__).parent / ".test.db"
+from pacer.config import consts
+
+DB_PATH = consts.ROOT_DIR / ".pacer.db"
+TEST_DB_PATH = consts.ROOT_DIR / ".test.db"
+
 if TEST_DB_PATH.exists():
     os.remove(TEST_DB_PATH)
 
@@ -18,7 +21,9 @@ Base = declarative_base()
 def make_session(db_path: Path = DB_PATH):
     """Create a `Session` class (not the object)"""
     from pacer.orm import (  # So tables created before engine starts
+        code_orm,
         file_orm,
+        note_orm,
         project_orm,
     )
 

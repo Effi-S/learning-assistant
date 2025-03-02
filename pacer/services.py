@@ -7,10 +7,13 @@ from langchain.schema import Document
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
+from pacer.models.code_cell_model import Code
 from pacer.models.file_model import FileEntry
 from pacer.models.project_model import ProjectData
 from pacer.orm import base
+from pacer.orm.code_orm import CodeCell
 from pacer.orm.file_orm import File, FileStatus, FileType
+from pacer.orm.note_orm import Note
 from pacer.orm.project_orm import Project
 from pacer.quiz import quiz_creater
 from pacer.tools import rag
@@ -97,13 +100,13 @@ def delete_file(file_entry: FileEntry):
 
 def add_summary_to_file(file_entry: FileEntry):
     """Adds both to `FileEntry` and `File` (in ORM)"""
-    suffix = Path(file_entry.filepath).suffix
-    if suffix in (".txt", ".py"):
+    # suffix = Path(file_entry.filepath).suffix
+    if file_entry.type_ in (FileType.MARKDOWN, FileType.TEXT, FileType.URL):
         split = rag.split_text(file_entry.content)
-    elif suffix in (".pdf"):
+    elif file_entry.type_ in (FileType.PDF,):
         split = rag.read_pdf(file_entry.content)
     else:
-        raise ValueError(f"Unkown type: `{suffix}`")
+        raise ValueError(f"Unkown type: `{file_entry.type_}`")
 
     print("Summary:")
     summary = rag.create_summary(split)
@@ -113,7 +116,7 @@ def add_summary_to_file(file_entry: FileEntry):
         file = session.query(File).filter(File.id == str(file_entry.id)).one()
         if not file.data:
             file.data = {}
-        file.data["summary"] = summary
+        file.data["summary"] = str(summary)
         flag_modified(file, "data")  #  the ORM may not detect changes automatically
         session.commit()
 
@@ -182,6 +185,52 @@ def get_practice(project_name: str) -> quiz_creater.Quiz:
         q = project.data.get("practice")
         if q:
             return quiz_creater.Quiz.model_validate_json(q)
+
+
+def add_note(note: str, project_name: str) -> Note:
+    with SessionLocal() as session:
+        project = session.query(Project).filter(Project.name == project_name).first()
+        note = Note(project_id=project.id, content=note)
+
+        session.add(note)
+        session.commit()
+        return note
+
+
+def get_notes(project_name: str) -> list[Note]:
+    with SessionLocal() as session:
+        project = session.query(Project).filter(Project.name == project_name).first()
+        return project.notes
+
+
+def update_note(note: Note, new_note: str) -> Note:
+    with SessionLocal() as session:
+        note = session.query(Note).filter(Note.id == note.id).first()  # avoid detach
+        note.content = new_note
+        session.commit()
+
+
+def create_cells(project_name: str) -> Note:
+    with SessionLocal() as session:
+        project = session.query(Project).filter(Project.name == project_name).first()
+        note = Note(project_id=project.id, content=note)
+
+        session.add(note)
+        session.commit()
+        return note
+
+
+def get_codes(project_name: str) -> list[CodeCell]:
+    with SessionLocal() as session:
+        project = session.query(Project).filter(Project.name == project_name).first()
+        return project.code_cells
+
+
+def update_codee(code: Code, new_code: str) -> Code:
+    with SessionLocal() as session:
+        code = session.query(CodeCell).filter(CodeCell.id == code.id).first()
+        code.code = new_code
+        session.commit()
 
 
 if __name__ == "__main__":

@@ -32,8 +32,9 @@ from langchain_core.documents.base import Document
 from langchain_core.vectorstores import VectorStore
 
 from pacer.config import consts
+from pacer.models.code_cell_model import CodeCells
 
-dotenv.load_dotenv()
+assert dotenv.load_dotenv(consts.ENV)
 
 
 def read_wikipedia(subject: str, load_max_docs: int = 1) -> list[Document]:
@@ -158,7 +159,7 @@ def insert_docs(
     if sub_dir:
         persist_directory /= sub_dir
     db = vectorsore.from_documents(
-        docs, embedding_function, persist_directory=persist_directory
+        docs, embedding_function, persist_directory=str(persist_directory)
     )
 
     return db
@@ -175,6 +176,18 @@ def create_summary(
         >>> print(create_summary(ss))
     """
     llm = llm or consts.DEFAULT_LLM
+    if len(split_documents) == 1:
+        try:
+            doc = split_documents[0].page_content
+            return llm.invoke(
+                f"Please create a detailed Summary of the following:\n{doc}"
+            ).content
+        except Exception as e:
+            print(
+                "********\n"
+                f"*** Warning could not create single Doc summary:\n{e}\n"
+                "..Trying summary chain..\n*******"
+            )
     chain = load_summarize_chain(llm, chain_type=chain_type)
     ret = chain.invoke(split_documents)
 
@@ -218,10 +231,38 @@ def compress_and_ask(question: str, db, llm=None) -> list[Document]:
         base_retriever=db.as_retriever(), base_compressor=compressor
     )
 
-    # --2-- Ask the compressקג docs a question
+    # --2-- Ask the compress docs a question
     compressed_docs = compression_retriever.invoke(question)
 
     return compressed_docs
+
+
+_subject_filter_prompt = ChatPromptTemplate.from_template(
+    """Given the following context:
+{context}
+
+List in bullet points the practical code that a student reading this article should learn.
+If you cannot find any code, leave this empty."""
+)
+
+_code_cell_prompt = ChatPromptTemplate.from_template(
+    """
+Given the following context from multiple documents:
+{context}
+
+Create code segments that can help a student practice coding these subjects.
+
+"""
+)
+
+
+def create_code_cells(db, llm=None) -> CodeCells:
+    llm = llm or consts.DEFAULT_LLM
+
+    retriever = db.as_retriever(search_kwargs={"k": 3})
+
+    chain = _code_cell_prompt | llm.with_structured_output(CodeCells)
+    chain.invoke({"context": retriever})
 
 
 if __name__ == "__main__":

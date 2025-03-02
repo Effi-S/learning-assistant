@@ -16,3 +16,9 @@ class Project(Base):
     files = relationship(
         "File", back_populates="project_ref", cascade="all, delete-orphan"
     )
+    notes = relationship(
+        "Note", back_populates="project_ref", cascade="all, delete-orphan"
+    )
+    code_cells = relationship(
+        "CodeCell", back_populates="project_ref", cascade="all, delete-orphan"
+    )
