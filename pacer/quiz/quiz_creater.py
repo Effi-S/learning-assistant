@@ -62,7 +62,7 @@ def create_quiz(documents: list[Document], llm=DEFAULT_LLM) -> Quiz:
     # -1- Gather sources
     texts = [doc.page_content for doc in documents]
     combined_text = "\n".join(texts)
-
+    print("Combined:", combined_text)
     # -2- structured chain
     chain = quiz_prompt | llm.with_structured_output(Quiz)
 

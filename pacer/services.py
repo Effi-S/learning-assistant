@@ -124,16 +124,16 @@ def add_summary_to_file(file_entry: FileEntry):
 def read_sources(sources: list[FileEntry]) -> list[Document]:
     """Converts FileEntries to LangChain Documents
     (perhaps this should move to file_entry.py)"""
-    suffix2entries = defaultdict(list)
-    for entry in sources:
-        suffix2entries[entry.type_].append(entry)
-    pdf_entries, text_entries = suffix2entries[".pdf"], suffix2entries[".txt"]
-
+    text_types = [FileType.TEXT, FileType.URL, FileType.MARKDOWN]
     docs = []
-    for entry in pdf_entries:
-        docs += rag.read_pdf(entry.content)
-    for entry in text_entries:
-        docs.append(Document(page_content=entry.content))
+    for entry in sources:
+        match entry.type_:
+            case FileType.PDF:
+                docs.extend(rag.read_pdf(entry.content))
+            case t if t in text_types:
+                docs.append(Document(page_content=entry.content))
+            case _:
+                docs.append(Document(page_content=entry.content))
 
     return docs
 

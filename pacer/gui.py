@@ -107,10 +107,11 @@ def display_project_files(project: str = None) -> Any:
             if fl.data and (summary := fl.data.get("summary")):
                 st.markdown(summary)
             elif st.button(":arrows_counterclockwise:", key=f"{fl.id}_add_button"):
-                services.add_summary_to_file(fl)
-                st.toast("Added summary to file")
-                st.cache_data.clear()
-                st.rerun()
+                with st.spinner("Adding summary.."):
+                    services.add_summary_to_file(fl)
+                    st.toast("Added summary to file")
+                    st.cache_data.clear()
+                    st.rerun()
             st.divider()
     with procederal_tab:
 
@@ -121,7 +122,9 @@ def display_project_files(project: str = None) -> Any:
                 if st.button(
                     ":arrows_counterclockwise:", key=f"{project}_add_quiz_button"
                 ):
-                    quiz = services.create_quiz(project_name=project)
+                    with st.spinner("Adding Quiz.."):
+                        quiz = services.create_quiz(project_name=project)
+                        st.rerun()
             if quiz:
                 friendly_mode = st.checkbox("Show Answers")
                 choices = []
@@ -136,7 +139,8 @@ def display_project_files(project: str = None) -> Any:
                                 st.write(f":exclamation: Answer: {ans}")
                     choices.append(choice)
                 if st.button("Make More"):
-                    services.create_quiz(project_name=project)
+                    with st.spinner("Adding Questions.."):
+                        services.create_quiz(project_name=project)
                     st.rerun()
 
                 if all(choices):
@@ -208,7 +212,8 @@ with st.sidebar:
             st.warning(f"Project {project_add_name} already exists!")
         else:
             st.cache_data.clear()
-            services.add_project(project_add_name)
+            with st.spinner(f"Creating project: {[project_add_name]}.."):
+                services.add_project(project_add_name)
             st.success(f"{project_add_name} Added!")
             # st.balloons()
         project_add_name = None
@@ -233,7 +238,8 @@ with st.sidebar:
                     )
                     for f in uploaded_files
                 ]
-                services.add_files(entries)
+                with st.spinner(f"Adding ({len(entries)}) files.."):
+                    services.add_files(entries)
                 for file in uploaded_files:
                     st.info(f"Added file: {file.name}")
 
@@ -250,7 +256,8 @@ with st.sidebar:
             url = st.text_input("Enter URL")
             submitted = st.form_submit_button()
         if submitted and url:
-            services.add_url(url, project_name=selected_project)
+            with st.spinner("Adding URL.."):
+                services.add_url(url, project_name=selected_project)
             st.cache_data.clear()
             st.info(f"Added URL: {url}")
 
