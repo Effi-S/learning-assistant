@@ -138,10 +138,17 @@ def display_project_files(project: str = None) -> Any:
                             else:
                                 st.write(f":exclamation: Answer: {ans}")
                     choices.append(choice)
-                if st.button("Make More"):
-                    with st.spinner("Adding Questions.."):
-                        services.create_quiz(project_name=project)
-                    st.rerun()
+                _c1, _c2 = st.columns(2)
+                with _c1:
+                    if st.button("Make More"):
+                        with st.spinner("Adding Questions.."):
+                            services.create_quiz(project_name=project)
+                        st.rerun()
+                with _c2:
+                    if st.button("Clear"):
+                        with st.spinner("Adding Questions.."):
+                            services.remove_quiz(project_name=project)
+                        st.rerun()
 
                 if all(choices):
                     right, total = sum(

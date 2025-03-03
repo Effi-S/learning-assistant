@@ -165,6 +165,15 @@ def create_quiz(project_name: str) -> quiz_creater.Quiz:
         return quiz
 
 
+def remove_quiz(project_name: str) -> None:
+    assert project_name
+    with SessionLocal() as session:
+        project = session.query(Project).filter(Project.name == project_name).first()
+        project.data.pop("quiz", None)
+        flag_modified(project, "data")  #  the ORM may not detect changes automatically
+        session.commit()
+
+
 def create_practice(project_name: str) -> quiz_creater.Quiz:
     assert project_name
     with SessionLocal() as session:

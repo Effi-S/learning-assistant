@@ -31,7 +31,11 @@ class QuizQuestion(BaseModel):
     options: list[str] = Field(default_factory=list)
 
     def model_post_init(self, *args, **kwargs):
-        if all(opt[1:2] in (")",) for opt in self.options) and len(self.answer) == 1:
+
+        if (
+            all(opt[1:2] in (")", ".") for opt in self.options)
+            and len(self.answer) == 1
+        ):
             # Edgecase example:
             # -------
             # QuizQuestion(question="What is the capital of France?",
@@ -59,6 +63,9 @@ class Quiz(BaseModel):
 
 
 def create_quiz(documents: list[Document], llm=DEFAULT_LLM) -> Quiz:
+    import IPython
+
+    IPython.embed()
     # -1- Gather sources
     texts = [doc.page_content for doc in documents]
     combined_text = "\n".join(texts)
