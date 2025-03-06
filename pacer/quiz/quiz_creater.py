@@ -2,7 +2,7 @@ from langchain.prompts import PromptTemplate
 from langchain.schema import Document
 from pydantic import BaseModel, Field, field_validator
 
-from pacer.config.consts import DEFAULT_LLM
+from pacer.config.llm_adapter import LLMSwitch
 from pacer.tools import rag
 
 quiz_prompt = PromptTemplate(
@@ -62,10 +62,8 @@ class Quiz(BaseModel):
     # answers: list[str] = Field(default_factory=list)
 
 
-def create_quiz(documents: list[Document], llm=DEFAULT_LLM) -> Quiz:
-    import IPython
-
-    IPython.embed()
+def create_quiz(documents: list[Document], llm=None) -> Quiz:
+    llm = llm or LLMSwitch.get_current()
     # -1- Gather sources
     texts = [doc.page_content for doc in documents]
     combined_text = "\n".join(texts)
@@ -76,7 +74,8 @@ def create_quiz(documents: list[Document], llm=DEFAULT_LLM) -> Quiz:
     return chain.invoke(dict(text=combined_text))
 
 
-def add_questions(documents: list[Document], quiz: Quiz, llm=DEFAULT_LLM) -> Quiz:
+def add_questions(documents: list[Document], quiz: Quiz, llm=None) -> Quiz:
+    llm = llm or LLMSwitch.get_current()
     # -1- Gather sources
     texts = [doc.page_content for doc in documents]
     combined_text = "\n".join(texts)

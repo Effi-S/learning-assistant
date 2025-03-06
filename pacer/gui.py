@@ -13,15 +13,19 @@ from IPython.core.interactiveshell import InteractiveShell
 from streamlit.components.v1 import html
 
 from pacer import services
+from pacer.config.llm_adapter import LLMSwitch
 from pacer.models.file_model import FileEntry
 from pacer.models.project_model import ProjectData
 from pacer.orm.file_orm import FileStatus
 from pacer.tools import interactive_code
 
-st.set_page_config(layout="wide")  # Enables wide mode
+st.set_page_config(layout="wide", page_icon=":placard:", page_title="PACER")
 
 if "edit_toggles" not in st.session_state:
     st.session_state["edit_toggles"] = {}
+
+if "messages" not in st.session_state:
+    st.session_state.messages = {}
 
 _edit_toggles = st.session_state["edit_toggles"]
 
@@ -89,6 +93,7 @@ def display_project_files(project: str = None) -> Any:
         evidence_tab,
         reference_tab,
         notes_tab,
+        chat_tab,
     ) = st.tabs(
         [
             "Summary",
@@ -98,6 +103,7 @@ def display_project_files(project: str = None) -> Any:
             "Evidence",
             "Reference",
             "Notes",
+            "Chat",
         ]
     )
 
@@ -138,29 +144,32 @@ def display_project_files(project: str = None) -> Any:
                             else:
                                 st.write(f":exclamation: Answer: {ans}")
                     choices.append(choice)
-                _c1, _c2 = st.columns(2)
+                _c1, _c2, _c3 = st.columns(3)
                 with _c1:
                     if st.button("Make More"):
                         with st.spinner("Adding Questions.."):
                             services.create_quiz(project_name=project)
                         st.rerun()
+                right, total = sum(
+                    1 for q, a in zip(quiz.questions, choices) if q.answer == a
+                ), len(quiz.questions)
+                score = right / total
+
                 with _c2:
-                    if st.button("Clear"):
+                    see_score = st.button("See Score")
+                if see_score:
+                    handler = {
+                        0 <= score < 0.5: st.error,
+                        0.5 <= score < 0.7: st.info,
+                        0.7 <= score: st.success,
+                    }[True]
+                    handler(f"[{right} / {total}] Score: {score:.0%} ")
+
+                with _c3:
+                    if st.button("Remove All"):
                         with st.spinner("Adding Questions.."):
                             services.remove_quiz(project_name=project)
                         st.rerun()
-
-                if all(choices):
-                    right, total = sum(
-                        1 for q, a in zip(quiz.questions, choices) if q.answer == a
-                    ), len(quiz.questions)
-                    score = right / total
-                    if st.button("See Score"):
-                        (
-                            st.success
-                            if score > 0.7
-                            else st.info if score > 0.5 else st.error
-                        )(f"[{right} / {total}] Score: {score:.0%} ")
 
             st.divider()
         with practice_tab:
@@ -195,7 +204,7 @@ def display_project_files(project: str = None) -> Any:
         st.markdown("**Your Notes:**\n\n")
 
         for i, note in enumerate(services.get_notes(selected_project), 1):
-            with st.expander(f"Note {i}"):
+            with st.expander(f"{i}) {note.content.split('\n', 1)[0][:20]}.."):
                 _c1, _c2 = st.columns([0.9, 0.1])
                 with _c2:
                     if st.button(f":pencil:", key=f"del_{i}"):
@@ -209,7 +218,23 @@ def display_project_files(project: str = None) -> Any:
                             st.rerun()
                 else:
                     with _c1:
-                        st.markdown(note.content)
+                        st.markdown(note.content.replace("\n", "\n\n"))
+    with chat_tab:
+
+        if project not in st.session_state.messages:
+            st.session_state.messages[project] = [
+                {"role": "assistant", "content": "Ask some questions about your docs."}
+            ]
+        messages = st.session_state.messages[project]
+        for message in messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+        if user_input := st.chat_input("Type your message..."):
+            messages.append({"role": "user", "content": user_input})
+            bot_response = f"You said: {user_input}"  # TODO:
+            messages.append({"role": "assistant", "content": bot_response})
+            st.rerun()
 
 
 with st.sidebar:
@@ -268,6 +293,10 @@ with st.sidebar:
             st.cache_data.clear()
             st.info(f"Added URL: {url}")
 
+        choice = st.selectbox("Choose LLM", options=LLMSwitch.services(), key="cllm-sb")
+        if choice != st.session_state.get("cllm-sb"):
+            st.session_state["cllm-sb"] = choice
+            LLMSwitch.switch(choice)
         for _ in range(20):
             st.write("")
         if st.button(":wastebasket: delete project"):

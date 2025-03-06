@@ -9,5 +9,5 @@ ENV = ROOT_DIR / ".env"
 assert ENV.exists(), f"Missing .env file: {ENV}"
 assert load_dotenv(ENV)
 
-DEFAULT_LLM = ChatOpenAI(model="gpt-4o")
+# DEFAULT_LLM = ChatOpenAI(model="gpt-4o")
 DEFAULT_EMBEDDING = OpenAIEmbeddings(model="text-embedding-3-large")

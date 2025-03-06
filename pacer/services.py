@@ -241,6 +241,13 @@ def update_codee(code: Code, new_code: str) -> Code:
         code.code = new_code
         session.commit()
 
+def get_messages(project_name: str) -> list:
+    ...
+
+def ask(question, project_name: str, context: list[FileEntry]):
+    """Ask An AI Agent about a question relating to docs"""
+    ...
+
 
 if __name__ == "__main__":
     import IPython

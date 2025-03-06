@@ -31,7 +31,9 @@ from langchain_community.vectorstores import Chroma
 from langchain_core.documents.base import Document
 from langchain_core.vectorstores import VectorStore
 
+# from pacer.config import consts
 from pacer.config import consts
+from pacer.config.llm_adapter import LLMSwitch
 from pacer.models.code_cell_model import CodeCells
 
 assert dotenv.load_dotenv(consts.ENV)
@@ -54,7 +56,7 @@ def ask_wiki(
         Out[1]: 'System: A cryptographic hash function is a mathematical algorithm that
                 takes input data of any size and produces a fixed-size output known as a hash value...'
     (Dependency: wikipedia)"""
-    llm = llm or consts.DEFAULT_LLM
+    llm = llm or LLMSwitch.get_current()
     context = read_wikipedia(query=subject, load_max_docs=load_max_docs)
 
     sys_msg = SystemMessagePromptTemplate.from_template(
@@ -175,7 +177,7 @@ def create_summary(
         >>> ss = split_documents(pages)
         >>> print(create_summary(ss))
     """
-    llm = llm or consts.DEFAULT_LLM
+    llm = llm or LLMSwitch.get_current()
     if len(split_documents) == 1:
         try:
             doc = split_documents[0].page_content
@@ -212,7 +214,7 @@ def get_multi_query(question, db, llm=None) -> list[Document]:
     logger.setLevel(logging.INFO)
     # -- -- --
 
-    llm = llm or consts.DEFAULT_LLM
+    llm = llm or LLMSwitch.get_current()
     retriever_from_llm = MultiQueryRetriever.from_llm(
         retriever=db.as_retriever(), llm=llm
     )
@@ -222,7 +224,7 @@ def get_multi_query(question, db, llm=None) -> list[Document]:
 
 def compress_and_ask(question: str, db, llm=None) -> list[Document]:
     """See: https://python.langchain.com/docs/how_to/contextual_compression/"""
-    llm = llm or consts.DEFAULT_LLM
+    llm = llm or LLMSwitch.get_current()
 
     # --1-- Compress docs
 
@@ -257,7 +259,7 @@ Create code segments that can help a student practice coding these subjects.
 
 
 def create_code_cells(db, llm=None) -> CodeCells:
-    llm = llm or consts.DEFAULT_LLM
+    llm = llm or LLMSwitch.get_current()
 
     retriever = db.as_retriever(search_kwargs={"k": 3})
 
