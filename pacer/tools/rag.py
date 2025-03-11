@@ -121,14 +121,14 @@ def read_pdf(source: Path | str) -> list[Document]:
     """(Dependency: pypdf )"""
     if isinstance(source, Path):
         loader = PyPDFLoader(str(source))
-        return loader.load_and_split()
+        return loader.load()
     elif isinstance(source, str):
         with tempfile.NamedTemporaryFile(delete=True, suffix=".pdf") as temp_pdf:
             pdf_bytes = base64.b64decode(source)
             temp_pdf.write(pdf_bytes)
             temp_pdf.flush()
             loader = PyPDFLoader(temp_pdf.name)
-            pages = loader.load_and_split()
+            pages = loader.load()
             return pages
     else:
         NotImplemented(f"Reading PDF from: `{type(source)}` Not implemented.")

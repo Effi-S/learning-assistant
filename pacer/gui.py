@@ -64,6 +64,89 @@ def _show_file(file: FileEntry):
             )
 
 
+def _render_notes(project: str):
+    with st.form(key=f"{project}_note_form"):
+        note = st.text_area("Write your note here:", key="note_input")
+        submit_button = st.form_submit_button(label="Add Note")
+
+        if submit_button and note.strip():
+            services.add_note(note, project)
+            st.success("Note added!")
+
+    st.divider()
+    st.markdown("**Your Notes:**\n\n")
+
+    for i, note in enumerate(services.get_notes(project), 1):
+        with st.expander(f"{i}) {note.content.split('\n', 1)[0][:20]}.."):
+            _c1, _c2, _c3 = st.columns([0.8, 0.1, 0.1])
+            with _c2:
+                if st.button(f":pencil:", key=f"edit_note_toggle_{i}"):
+                    _edit_toggles[i] = not _edit_toggles.get(i, False)
+            if _edit_toggles.get(i):
+                with _c1:
+                    note_edit = st.text_area(label="edit", value=note.content)
+                    if st.button("Update", key=f"update_note_{i}"):
+                        services.update_note(note, note_edit)
+                        _edit_toggles[i] = False
+                        st.rerun()
+            else:
+                with _c1:
+                    st.markdown(note.content.replace("\n", "\n\n"))
+            with _c3:
+                if st.button(f":wastebasket:", key=f"del_{i}"):
+                    services.remove_note(note)
+                    _edit_toggles[i] = True
+
+
+def _render_quiz(project: str):
+    if not (quiz := services.get_quiz(project)):
+        if st.button(":arrows_counterclockwise:", key=f"{project}_add_quiz_button"):
+            with st.spinner("Adding Quiz.."):
+                quiz = services.create_quiz(project_name=project)
+                st.rerun()
+    if quiz:
+        friendly_mode = st.checkbox("Show Answers")
+        choices = []
+        for i, q in enumerate(quiz.questions):
+            if choice := st.radio(
+                f"**{q.question}**", q.options, index=None, key=f"qestion_{i}"
+            ):
+                if friendly_mode:
+                    if choice == (ans := q.answer):
+                        st.write(":white_check_mark:")
+                    else:
+                        st.write(f":exclamation: Answer: {ans}")
+            choices.append(choice)
+        _c1, _c2, _c3 = st.columns(3)
+        with _c1:
+            if st.button("Make More"):
+                with st.spinner("Adding Questions.."):
+                    services.create_quiz(project_name=project)
+                st.rerun()
+        right, total = sum(
+            1 for q, a in zip(quiz.questions, choices) if q.answer == a
+        ), len(quiz.questions)
+        score = right / total
+
+        with _c2:
+            see_score = st.button("See Score")
+        if see_score:
+            handler = {
+                0 <= score < 0.5: st.error,
+                0.5 <= score < 0.7: st.info,
+                0.7 <= score: st.success,
+            }[True]
+            handler(f"[{right} / {total}] Score: {score:.0%} ")
+
+        with _c3:
+            if st.button("Remove All"):
+                with st.spinner("Adding Questions.."):
+                    services.remove_quiz(project_name=project)
+                st.rerun()
+
+    st.divider()
+
+
 def display_project_files(project: str = None) -> Any:
     """Display the list of files in a project and available actions."""
     if not project:
@@ -71,8 +154,6 @@ def display_project_files(project: str = None) -> Any:
     st.subheader(project)
 
     files = list_files(project)
-    if not files:
-        return st.warning("No files found in this project.")
 
     c1, c2 = st.columns([0.8, 0.1])
     for fl in files:
@@ -86,6 +167,7 @@ def display_project_files(project: str = None) -> Any:
                 st.rerun()
 
     (
+        original_tab,
         summary_tab,
         procederal_tab,
         analogous_tab,
@@ -96,6 +178,7 @@ def display_project_files(project: str = None) -> Any:
         chat_tab,
     ) = st.tabs(
         [
+            "Original",
             "Summary",
             "Procederal",
             "Analogous",
@@ -106,81 +189,41 @@ def display_project_files(project: str = None) -> Any:
             "Chat",
         ]
     )
-
+    with original_tab:
+        for fl in files:
+            st.subheader(fl.title)
+            for doc in services.iter_read_entry(fl):
+                st.markdown(doc.page_content)
+                st.divider()
     with summary_tab:
         for fl in files:
             st.subheader(fl.title)
             if fl.data and (summary := fl.data.get("summary")):
                 st.markdown(summary)
             elif st.button(":arrows_counterclockwise:", key=f"{fl.id}_add_button"):
-                with st.spinner("Adding summary.."):
+                with st.spinner("Adding summary..", show_time=True):
                     services.add_summary_to_file(fl)
                     st.toast("Added summary to file")
                     st.cache_data.clear()
                     st.rerun()
             st.divider()
     with procederal_tab:
+        if not files:
+            st.warning("No files found in this project.")
 
-        quiz_tab, practice_tab = st.tabs(["Quiz", "Practice"])
-        with quiz_tab:
+        else:
+            quiz_tab, practice_tab = st.tabs(["Quiz", "Practice"])
+            with quiz_tab:
+                _render_quiz(project=project)
+            with practice_tab:
+                ...
+                # cells = services.get_codes(project_name=project)
+                # if not cells:
+                #     cells = services.create_cells(project_name=project)
+                # for cell in cells:
+                #     interactive_code.interactive_code(cell)
 
-            if not (quiz := services.get_quiz(project)):
-                if st.button(
-                    ":arrows_counterclockwise:", key=f"{project}_add_quiz_button"
-                ):
-                    with st.spinner("Adding Quiz.."):
-                        quiz = services.create_quiz(project_name=project)
-                        st.rerun()
-            if quiz:
-                friendly_mode = st.checkbox("Show Answers")
-                choices = []
-                for i, q in enumerate(quiz.questions):
-                    if choice := st.radio(
-                        f"**{q.question}**", q.options, index=None, key=f"qestion_{i}"
-                    ):
-                        if friendly_mode:
-                            if choice == (ans := q.answer):
-                                st.write(":white_check_mark:")
-                            else:
-                                st.write(f":exclamation: Answer: {ans}")
-                    choices.append(choice)
-                _c1, _c2, _c3 = st.columns(3)
-                with _c1:
-                    if st.button("Make More"):
-                        with st.spinner("Adding Questions.."):
-                            services.create_quiz(project_name=project)
-                        st.rerun()
-                right, total = sum(
-                    1 for q, a in zip(quiz.questions, choices) if q.answer == a
-                ), len(quiz.questions)
-                score = right / total
-
-                with _c2:
-                    see_score = st.button("See Score")
-                if see_score:
-                    handler = {
-                        0 <= score < 0.5: st.error,
-                        0.5 <= score < 0.7: st.info,
-                        0.7 <= score: st.success,
-                    }[True]
-                    handler(f"[{right} / {total}] Score: {score:.0%} ")
-
-                with _c3:
-                    if st.button("Remove All"):
-                        with st.spinner("Adding Questions.."):
-                            services.remove_quiz(project_name=project)
-                        st.rerun()
-
-            st.divider()
-        with practice_tab:
-            ...
-            # cells = services.get_codes(project_name=project)
-            # if not cells:
-            #     cells = services.create_cells(project_name=project)
-            # for cell in cells:
-            #     interactive_code.interactive_code(cell)
-
-            st.divider()
+                st.divider()
     with analogous_tab:
         st.divider()
 
@@ -194,31 +237,7 @@ def display_project_files(project: str = None) -> Any:
         st.divider()
 
     with notes_tab:
-        note = st.text_area("Write your note here:")
-        if st.button("Add Note") and note.strip():
-            services.add_note(note, selected_project)
-            st.success("Note added!")
-            st.cache_data.clear()
-
-        st.divider()
-        st.markdown("**Your Notes:**\n\n")
-
-        for i, note in enumerate(services.get_notes(selected_project), 1):
-            with st.expander(f"{i}) {note.content.split('\n', 1)[0][:20]}.."):
-                _c1, _c2 = st.columns([0.9, 0.1])
-                with _c2:
-                    if st.button(f":pencil:", key=f"del_{i}"):
-                        _edit_toggles[i] = not _edit_toggles.get(i, False)
-                if _edit_toggles.get(i):
-                    with _c1:
-                        note_edit = st.text_area(label="edit", value=note.content)
-                        if st.button("Update", key=f"update_note_{i}"):
-                            services.update_note(note, note_edit)
-                            _edit_toggles[i] = False
-                            st.rerun()
-                else:
-                    with _c1:
-                        st.markdown(note.content.replace("\n", "\n\n"))
+        _render_notes(project=project)
     with chat_tab:
 
         if project not in st.session_state.messages:
@@ -239,7 +258,7 @@ def display_project_files(project: str = None) -> Any:
 
 with st.sidebar:
     # Section Add Project
-    if project_add_name := st.text_input("Add New Project"):
+    if project_add_name := st.text_input("Add New Project", key="add-proj-text-input"):
         if project_add_name in list_projects():
             st.warning(f"Project {project_add_name} already exists!")
         else:

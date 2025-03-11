@@ -1,6 +1,7 @@
 from collections import defaultdict
 from itertools import chain
 from pathlib import Path
+from typing import Generator
 from uuid import uuid4
 
 from langchain.schema import Document
@@ -121,20 +122,21 @@ def add_summary_to_file(file_entry: FileEntry):
         session.commit()
 
 
+def iter_read_entry(entry: FileEntry) -> Generator[None, None, Document]:
+    text_types = [FileType.TEXT, FileType.URL, FileType.MARKDOWN]
+    match entry.type_:
+        case FileType.PDF:
+            yield from rag.read_pdf(entry.content)
+        case t if t in text_types:
+            yield Document(page_content=entry.content)
+        case _:
+            yield Document(page_content=entry.content)
+
+
 def read_sources(sources: list[FileEntry]) -> list[Document]:
     """Converts FileEntries to LangChain Documents
     (perhaps this should move to file_entry.py)"""
-    text_types = [FileType.TEXT, FileType.URL, FileType.MARKDOWN]
-    docs = []
-    for entry in sources:
-        match entry.type_:
-            case FileType.PDF:
-                docs.extend(rag.read_pdf(entry.content))
-            case t if t in text_types:
-                docs.append(Document(page_content=entry.content))
-            case _:
-                docs.append(Document(page_content=entry.content))
-
+    docs = [doc for entry in sources for doc in iter_read_entry(entry)]
     return docs
 
 
@@ -212,6 +214,12 @@ def get_notes(project_name: str) -> list[Note]:
         return project.notes
 
 
+def remove_note(note: Note):
+    with SessionLocal() as session:
+        session.delete(note)
+        session.commit()
+
+
 def update_note(note: Note, new_note: str) -> Note:
     with SessionLocal() as session:
         note = session.query(Note).filter(Note.id == note.id).first()  # avoid detach
@@ -241,8 +249,9 @@ def update_codee(code: Code, new_code: str) -> Code:
         code.code = new_code
         session.commit()
 
-def get_messages(project_name: str) -> list:
-    ...
+
+def get_messages(project_name: str) -> list: ...
+
 
 def ask(question, project_name: str, context: list[FileEntry]):
     """Ask An AI Agent about a question relating to docs"""
