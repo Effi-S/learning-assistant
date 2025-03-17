@@ -227,27 +227,58 @@ def update_note(note: Note, new_note: str) -> Note:
         session.commit()
 
 
-def create_cells(project_name: str) -> Note:
+def get_codes(project_name: str) -> list[Code]:
     with SessionLocal() as session:
         project = session.query(Project).filter(Project.name == project_name).first()
-        note = Note(project_id=project.id, content=note)
+        if not project.code_cells:
+            project.code_cells = [CodeCell(project_id=project.id, project_ref=project)]
+        if project.code_cells[-1].code not in ("", None):
+            project.code_cells.append(
+                CodeCell(project_id=project.id, project_ref=project)
+            )
+        return [
+            Code.model_construct(c, project_ref=project) for c in project.code_cells
+        ]
 
-        session.add(note)
-        session.commit()
-        return note
 
-
-def get_codes(project_name: str) -> list[CodeCell]:
+def update_code(code: Code) -> Code:
     with SessionLocal() as session:
-        project = session.query(Project).filter(Project.name == project_name).first()
-        return project.code_cells
+        # import IPython
 
+        # IPython.embed()
+        code_cell = session.query(CodeCell).filter(CodeCell.id == code.id).first()
 
-def update_codee(code: Code, new_code: str) -> Code:
-    with SessionLocal() as session:
-        code = session.query(CodeCell).filter(CodeCell.id == code.id).first()
-        code.code = new_code
+        # -1- Create Code if it does not already exist
+        if not code_cell:
+            code_cell = CodeCell(
+                code=code.code,
+                markdown=code.markdown,
+                language=code.language,
+                output=code.output,
+                project_id=code.project_ref.id,
+            )
+            session.add(code_cell)
+            session.commit()
+            return Code.model_construct(code_cell)
+
+        # -2- If no Changes to code do nothing
+        if all(
+            (
+                code.code == code_cell.code,
+                code.markdown == code_cell.markdown,
+                code.language == code_cell.language,
+                code.output == code_cell.output,
+            )
+        ):
+            return code
+
+        # -3- Update existing code
+        code_cell.code = code_cell.code
+        code_cell.markdown = code_cell.markdown
+        code_cell.language = code_cell.language
+        code_cell.output = code_cell.output
         session.commit()
+    return Code.model_construct(code_cell)
 
 
 def get_messages(project_name: str) -> list: ...

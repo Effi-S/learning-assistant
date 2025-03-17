@@ -1,4 +1,4 @@
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -8,11 +8,11 @@ from pacer.models.project_model import ProjectData
 class Code(BaseModel):
     """Jupter notebook cell for learning"""
 
-    id: UUID = None
+    id: UUID = Field(default_factory=uuid4)
     language: str = Field("python")
-    markdown: str = Field("Markdow explanation of the code.", description="")
-    code: str = Field("The code example itself.")
-    output: str = Field("The expected output")
+    markdown: str = Field("", description="Markdown explanation of the code.")
+    code: str = Field("", description="The code example itself.")
+    output: str = Field("", description="The expected output")
     project_ref: ProjectData = Field(default=None, repr=False)
 
     class Config:

@@ -1,23 +1,14 @@
-import io
-import json
-import sys
-from collections import defaultdict
-from pathlib import Path
 from typing import Any
 
 import streamlit as st
-from IPython import get_ipython
-from IPython.core.interactiveshell import InteractiveShell
-
-# Initialize an IPython shell
-from streamlit.components.v1 import html
 
 from pacer import services
 from pacer.config.llm_adapter import LLMSwitch
+from pacer.models.code_cell_model import Code
 from pacer.models.file_model import FileEntry
 from pacer.models.project_model import ProjectData
-from pacer.orm.file_orm import FileStatus
 from pacer.tools import interactive_code
+from pacer.tools.jupyter_handler import JupyterHandler
 
 st.set_page_config(layout="wide", page_icon=":placard:", page_title="PACER")
 
@@ -26,6 +17,9 @@ if "edit_toggles" not in st.session_state:
 
 if "messages" not in st.session_state:
     st.session_state.messages = {}
+
+if "jupyter_handles" not in st.session_state:
+    st.session_state.jupyter_handles = {}
 
 _edit_toggles = st.session_state["edit_toggles"]
 
@@ -41,31 +35,10 @@ def list_files(project: str) -> list[FileEntry]:
     return files
 
 
-def _show_file(file: FileEntry):
-    with st.expander(f"{file.title}"):
-        st.text_input("Path:", value=file.filepath)
-
-        if summary := file.crypto_data.get("summary"):
-            st.header("Summary:")
-            st.divider()
-            st.markdown(summary)
-
-        if st.checkbox(f"File Content", key=f"content_checkbox_{file.filepath}"):
-            st.code(
-                file.content, line_numbers=True, language=Path(file.filepath).suffix[1:]
-            )
-        if st.checkbox(f"View Raw Data", key=f"raw_checkbox_{file.id}"):
-            st.code(
-                json.dumps(
-                    file.crypto_data | {"id": file.id, "status": file.status}, indent=2
-                ),
-                line_numbers=True,
-                language="json",
-            )
-
-
 def _render_notes(project: str):
+
     with st.form(key=f"{project}_note_form"):
+
         note = st.text_area("Write your note here:", key="note_input")
         submit_button = st.form_submit_button(label="Add Note")
 
@@ -77,7 +50,7 @@ def _render_notes(project: str):
     st.markdown("**Your Notes:**\n\n")
 
     for i, note in enumerate(services.get_notes(project), 1):
-        with st.expander(f"{i}) {note.content.split('\n', 1)[0][:20]}.."):
+        with st.expander(f"{i}) {note.content.split('\n', 1)[0][:50]}.."):
             _c1, _c2, _c3 = st.columns([0.8, 0.1, 0.1])
             with _c2:
                 if st.button(f":pencil:", key=f"edit_note_toggle_{i}"):
@@ -91,7 +64,7 @@ def _render_notes(project: str):
                         st.rerun()
             else:
                 with _c1:
-                    st.markdown(note.content.replace("\n", "\n\n"))
+                    st.markdown(note.content)
             with _c3:
                 if st.button(f":wastebasket:", key=f"del_{i}"):
                     services.remove_note(note)
@@ -216,12 +189,13 @@ def display_project_files(project: str = None) -> Any:
             with quiz_tab:
                 _render_quiz(project=project)
             with practice_tab:
-                ...
-                # cells = services.get_codes(project_name=project)
-                # if not cells:
-                #     cells = services.create_cells(project_name=project)
-                # for cell in cells:
-                #     interactive_code.interactive_code(cell)
+                if project not in st.session_state.jupyter_handles:
+                    st.session_state.jupyter_handles[project] = JupyterHandler(
+                        project=project
+                    )
+
+                handler: JupyterHandler = st.session_state.jupyter_handles[project]
+                handler.run_jupyter().render()
 
                 st.divider()
     with analogous_tab:
@@ -256,81 +230,83 @@ def display_project_files(project: str = None) -> Any:
             st.rerun()
 
 
-with st.sidebar:
-    # Section Add Project
-    if project_add_name := st.text_input("Add New Project", key="add-proj-text-input"):
-        if project_add_name in list_projects():
-            st.warning(f"Project {project_add_name} already exists!")
-        else:
-            st.cache_data.clear()
-            with st.spinner(f"Creating project: {[project_add_name]}.."):
-                services.add_project(project_add_name)
-            st.success(f"{project_add_name} Added!")
-            # st.balloons()
-        project_add_name = None
-    st.divider()
-
-    # Section: List existing projects
-    if not (projects := list_projects()):
-        st.warning("No projects available. Add a new project to get started.")
-    elif selected_project := st.sidebar.selectbox("Select a Project", projects):
-
-        # Subection: Add new Source to project
-        st.header("Add source to project")
-        if uploaded_files := st.file_uploader(
-            "Choose a file", [".pdf", ".txt"], accept_multiple_files=True
-        ):
-            if st.button("Add"):
-                entries = [
-                    FileEntry(
-                        filepath=f.name,
-                        project_ref=ProjectData(name=selected_project),
-                        content=f.read(),
-                    )
-                    for f in uploaded_files
-                ]
-                with st.spinner(f"Adding ({len(entries)}) files.."):
-                    services.add_files(entries)
-                for file in uploaded_files:
-                    st.info(f"Added file: {file.name}")
-
-                    st.json(
-                        {
-                            "filename": file.name,
-                            "filetype": file.type,
-                            "filesize": file.size,
-                        },
-                        expanded=False,
-                    )
-                st.cache_data.clear()
-        with st.form("enter_url_form"):
-            url = st.text_input("Enter URL")
-            submitted = st.form_submit_button()
-        if submitted and url:
-            with st.spinner("Adding URL.."):
-                services.add_url(url, project_name=selected_project)
-            st.cache_data.clear()
-            st.info(f"Added URL: {url}")
-
-        choice = st.selectbox("Choose LLM", options=LLMSwitch.services(), key="cllm-sb")
-        if choice != st.session_state.get("cllm-sb"):
-            st.session_state["cllm-sb"] = choice
-            LLMSwitch.switch(choice)
-        for _ in range(20):
-            st.write("")
-        if st.button(":wastebasket: delete project"):
-            services.delete_project(selected_project)
-            st.cache_data.clear()
-            st.rerun()
-    st.divider()
-
-
-# Main Section:
-display_project_files(selected_project)
-
-
 def main():
     """ """
+    with st.sidebar:
+        # Section Add Project
+        if project_add_name := st.text_input(
+            "Add New Project", key="add_proj_text_input"
+        ):
+            if project_add_name in list_projects():
+                st.warning(f"Project {project_add_name} already exists!")
+                st.session_state.add_proj_text_input = ""
+            else:
+                st.cache_data.clear()
+                with st.spinner(f"Creating project: {[project_add_name]}.."):
+                    services.add_project(project_add_name)
+                st.success(f"{project_add_name} Added!")
+                # st.balloons()
+            project_add_name = None
+        st.divider()
+
+        # Section: List existing projects
+        if not (projects := list_projects()):
+            st.warning("No projects available. Add a new project to get started.")
+        elif selected_project := st.sidebar.selectbox("Select a Project", projects):
+
+            # Subection: Add new Source to project
+            st.header("Add source to project")
+            if uploaded_files := st.file_uploader(
+                "Choose a file", [".pdf", ".txt"], accept_multiple_files=True
+            ):
+                if st.button("Add"):
+                    entries = [
+                        FileEntry(
+                            filepath=f.name,
+                            project_ref=ProjectData(name=selected_project),
+                            content=f.read(),
+                        )
+                        for f in uploaded_files
+                    ]
+                    with st.spinner(f"Adding ({len(entries)}) files.."):
+                        services.add_files(entries)
+                    for file in uploaded_files:
+                        st.info(f"Added file: {file.name}")
+
+                        st.json(
+                            {
+                                "filename": file.name,
+                                "filetype": file.type,
+                                "filesize": file.size,
+                            },
+                            expanded=False,
+                        )
+                    st.cache_data.clear()
+            with st.form("enter_url_form"):
+                url = st.text_input("Enter URL")
+                submitted = st.form_submit_button()
+            if submitted and url:
+                with st.spinner("Adding URL.."):
+                    services.add_url(url, project_name=selected_project)
+                st.cache_data.clear()
+                st.info(f"Added URL: {url}")
+
+            choice = st.selectbox(
+                "Choose LLM", options=LLMSwitch.services(), key="cllm-sb"
+            )
+            if choice != st.session_state.get("cllm-sb"):
+                st.session_state["cllm-sb"] = choice
+                LLMSwitch.switch(choice)
+            for _ in range(20):
+                st.write("")
+            if st.button(":wastebasket: delete project"):
+                services.delete_project(selected_project)
+                st.cache_data.clear()
+                st.rerun()
+        st.divider()
+
+    # Main Section:
+    display_project_files(selected_project)
 
 
 if __name__ == "__main__":

@@ -16,3 +16,4 @@ pacer/orm/.pacer.db
 .ipynb_checkpoints
 Untitled.ipynb
 .pacer.db
+.jupyter/
