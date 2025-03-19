@@ -10,6 +10,7 @@ from pacer.models.code_cell_model import JupyterCells
 from pacer.models.file_model import FileEntry
 from pacer.models.project_model import ProjectData
 from pacer.tools.jupyter_handler import JupyterHandler
+from pacer.tools.streamlit_utils import confirm_popup
 
 st.set_page_config(layout="wide", page_icon=":placard:", page_title="PACER")
 
@@ -20,7 +21,7 @@ if "messages" not in st.session_state:
     st.session_state.messages = {}
 
 if "audios" not in st.session_state:
-    st.session_state.audios = defaultdict(list)
+    st.session_state.audios = defaultdict(set)
 
 if "jupyter_handles" not in st.session_state:
     st.session_state.jupyter_handles = {}
@@ -314,25 +315,12 @@ def main():
         st.divider()
         st.subheader("Live Audio Recording")
 
-        if audio_data := st_audiorec():
-            st.session_state.audios[selected_project].append(audio_data)
+        if audio_data := st_audiorec(energy_threshold=0.99):
+            choice = confirm_popup("You want to add this audio to project?")
+            if choice is not None:
+                st.success(f"Added audio file: {choice}")
+                audio_data = None
 
-        if to_add := st.session_state.audios[selected_project]:
-
-            selected_indices = st.multiselect(
-                "Select audio files to add",
-                options=list(range(len(to_add))),
-                format_func=lambda x: f"Audio {x + 1}",
-            )
-
-            if st.button(
-                f"Add Audio to: {selected_project}",
-                key=f"{selected_project}-add-audio-button",
-            ):
-                if selected_audios := [to_add[i] for i in selected_indices]:
-                    st.success(f"Added: {len(selected_audios)} audio files")
-                else:
-                    st.warning("No audio files selected to add.")
         st.divider()
 
         for _ in range(10):
