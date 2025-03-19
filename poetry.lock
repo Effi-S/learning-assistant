@@ -2749,19 +2749,20 @@ langchain-core = ">=0.3.34,<1.0.0"
 
 [[package]]
 name = "langsmith"
-version = "0.3.8"
+version = "0.3.15"
 description = "Client library to connect to the LangSmith LLM Tracing and Evaluation Platform."
 optional = false
 python-versions = "<4.0,>=3.9"
 groups = ["main"]
 files = [
-    {file = "langsmith-0.3.8-py3-none-any.whl", hash = "sha256:fbb9dd97b0f090219447fca9362698d07abaeda1da85aa7cc6ec6517b36581b1"},
-    {file = "langsmith-0.3.8.tar.gz", hash = "sha256:97f9bebe0b7cb0a4f278e6ff30ae7d5ededff3883b014442ec6d7d575b02a0f1"},
+    {file = "langsmith-0.3.15-py3-none-any.whl", hash = "sha256:eb0304b477189106f60758ddd3b55fb09a18be5cb2d586d76ffcaeb5170d2807"},
+    {file = "langsmith-0.3.15.tar.gz", hash = "sha256:b4fcd78926cdf310a882081ead95541fce911636fcffbb0d087fa1974994c4c7"},
 ]
 
 [package.dependencies]
 httpx = ">=0.23.0,<1"
 orjson = {version = ">=3.9.14,<4.0.0", markers = "platform_python_implementation != \"PyPy\""}
+packaging = ">=23.2"
 pydantic = {version = ">=2.7.4,<3.0.0", markers = "python_full_version >= \"3.12.4\""}
 requests = ">=2,<3"
 requests-toolbelt = ">=1.0.0,<2.0.0"
@@ -2769,6 +2770,7 @@ zstandard = ">=0.23.0,<0.24.0"
 
 [package.extras]
 langsmith-pyo3 = ["langsmith-pyo3 (>=0.1.0rc2,<0.2.0)"]
+openai-agents = ["openai-agents (>=0.0.3,<0.0.4)"]
 pytest = ["pytest (>=7.0.0)", "rich (>=13.9.4,<14.0.0)"]
 
 [[package]]
@@ -7069,4 +7071,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.13"
-content-hash = "c5484246a98b0e6dbb1656e59c5854f1eae96e6d4ca67823cd516f2bd3cb969d"
+content-hash = "98293df463d86153ee1dfcb7203ad521ff4bbe4406e3e8becab33fd758063348"

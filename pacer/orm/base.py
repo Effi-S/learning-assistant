@@ -21,8 +21,8 @@ Base = declarative_base()
 def make_session(db_path: Path = DB_PATH):
     """Create a `Session` class (not the object)"""
     from pacer.orm import (  # So tables created before engine starts
-        code_orm,
         file_orm,
+        jupyter_cell_orm,
         note_orm,
         project_orm,
     )

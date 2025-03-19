@@ -34,7 +34,7 @@ from langchain_core.vectorstores import VectorStore
 # from pacer.config import consts
 from pacer.config import consts
 from pacer.config.llm_adapter import LLMSwitch
-from pacer.models.code_cell_model import CodeCells
+from pacer.models.code_cell_model import JupyterCells
 
 assert dotenv.load_dotenv(consts.ENV)
 
@@ -249,22 +249,28 @@ If you cannot find any code, leave this empty."""
 
 _code_cell_prompt = ChatPromptTemplate.from_template(
     """
-Given the following context from multiple documents:
+Create a Jupyter Notebook that can help practice coding.
+Prefer adding Markdown Cells to explain the over comments in the code.
+Base the Notebook on the following context from multiple documents:
 {context}
 
-Create code segments that can help a student practice coding these subjects.
 
 """
 )
 
 
-def create_code_cells(db, llm=None) -> CodeCells:
+def create_jupyter_cells(
+    db, llm=None, prompt_template: Optional[ChatPromptTemplate] = None
+):
+    prompt = prompt_template or _code_cell_prompt
     llm = llm or LLMSwitch.get_current()
 
-    retriever = db.as_retriever(search_kwargs={"k": 3})
-
-    chain = _code_cell_prompt | llm.with_structured_output(CodeCells)
-    chain.invoke({"context": retriever})
+    retriever = db.as_retriever(search_kwargs={"k": 30})
+    context_docs = retriever.invoke("")
+    context = "\n----\n".join(doc.page_content for doc in context_docs)
+    chain = prompt | llm.with_structured_output(JupyterCells, method="function_calling")
+    result = chain.invoke({"context": context})
+    return result
 
 
 if __name__ == "__main__":

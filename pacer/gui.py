@@ -1,13 +1,14 @@
+from collections import defaultdict
 from typing import Any
 
 import streamlit as st
+from audio_recorder_streamlit import audio_recorder as st_audiorec
 
 from pacer import services
 from pacer.config.llm_adapter import LLMSwitch
-from pacer.models.code_cell_model import Code
+from pacer.models.code_cell_model import JupyterCells
 from pacer.models.file_model import FileEntry
 from pacer.models.project_model import ProjectData
-from pacer.tools import interactive_code
 from pacer.tools.jupyter_handler import JupyterHandler
 
 st.set_page_config(layout="wide", page_icon=":placard:", page_title="PACER")
@@ -17,6 +18,9 @@ if "edit_toggles" not in st.session_state:
 
 if "messages" not in st.session_state:
     st.session_state.messages = {}
+
+if "audios" not in st.session_state:
+    st.session_state.audios = defaultdict(list)
 
 if "jupyter_handles" not in st.session_state:
     st.session_state.jupyter_handles = {}
@@ -195,6 +199,15 @@ def display_project_files(project: str = None) -> Any:
                     )
 
                 handler: JupyterHandler = st.session_state.jupyter_handles[project]
+                if st.button("Generate", key=f"{project}_jupyter-generate"):
+                    with st.spinner("Generating Notebook..", show_time=True):
+                        jup: JupyterCells = services.create_jupyter_cells(
+                            project_name=project
+                        )
+                        for cell in jup.cells:
+                            handler.add_cell(cell)
+                    handler.save_changes()
+
                 handler.run_jupyter().render()
 
                 st.divider()
@@ -297,12 +310,38 @@ def main():
             if choice != st.session_state.get("cllm-sb"):
                 st.session_state["cllm-sb"] = choice
                 LLMSwitch.switch(choice)
-            for _ in range(20):
-                st.write("")
-            if st.button(":wastebasket: delete project"):
-                services.delete_project(selected_project)
-                st.cache_data.clear()
-                st.rerun()
+
+        st.divider()
+        st.subheader("Live Audio Recording")
+
+        if audio_data := st_audiorec():
+            st.session_state.audios[selected_project].append(audio_data)
+
+        if to_add := st.session_state.audios[selected_project]:
+
+            selected_indices = st.multiselect(
+                "Select audio files to add",
+                options=list(range(len(to_add))),
+                format_func=lambda x: f"Audio {x + 1}",
+            )
+
+            if st.button(
+                f"Add Audio to: {selected_project}",
+                key=f"{selected_project}-add-audio-button",
+            ):
+                if selected_audios := [to_add[i] for i in selected_indices]:
+                    st.success(f"Added: {len(selected_audios)} audio files")
+                else:
+                    st.warning("No audio files selected to add.")
+        st.divider()
+
+        for _ in range(10):
+            st.write("")
+
+        if st.button(":wastebasket: delete project"):
+            services.delete_project(selected_project)
+            st.cache_data.clear()
+            st.rerun()
         st.divider()
 
     # Main Section:

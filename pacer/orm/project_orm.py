@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import JSON, UUID, Column, Null, String
+from sqlalchemy import JSON, UUID, Column, String
 from sqlalchemy.orm import relationship
 
 from pacer.orm.base import Base
@@ -19,6 +19,6 @@ class Project(Base):
     notes = relationship(
         "Note", back_populates="project_ref", cascade="all, delete-orphan"
     )
-    code_cells = relationship(
-        "CodeCell", back_populates="project_ref", cascade="all, delete-orphan"
+    jupyter_cells = relationship(
+        "JupyterCell", back_populates="project_ref", cascade="all, delete-orphan"
     )

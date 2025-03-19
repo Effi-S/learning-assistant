@@ -8,19 +8,20 @@ from pacer.tools import rag
 quiz_prompt = PromptTemplate(
     input_variables=["text"],
     template=(
-        "Given the following text:\n{text}\n\n"
         "Generate a multiple-choice quiz with 10 questions. Each question should have 4 options, "
         "with the correct answer marked clearly."
+        "Based on the following text:\n{text}\n\n"
     ),
 )
 
 quiz_append_prompt = PromptTemplate(
     input_variables=["text"],
     template=(
-        "Given the following text:\n{text}\n\n"
-        "And the following questions:\n{questions}\n\n"
-        "Add 10 new questions. Each question should have 4-6 options, "
+        "Add 10 new questions to the questions below."
+        "Each question should have 4-6 options, "
         "with the correct answer marked clearly."
+        "The Questions:\n{questions}\n\n"
+        "Base questions on the following text:\n{text}\n\n"
     ),
 )
 
@@ -69,6 +70,7 @@ def create_quiz(documents: list[Document], llm=None) -> Quiz:
     combined_text = "\n".join(texts)
     print("Combined:", combined_text)
     # -2- structured chain
+
     chain = quiz_prompt | llm.with_structured_output(Quiz)
 
     return chain.invoke(dict(text=combined_text))

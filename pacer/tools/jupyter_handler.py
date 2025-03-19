@@ -7,6 +7,7 @@ import nbformat as nbf
 import streamlit as st
 
 from pacer.config.consts import ROOT_DIR
+from pacer.models.code_cell_model import Cell, CellType
 
 
 class JupyterHandler:
@@ -64,6 +65,12 @@ class JupyterHandler:
         self.cells.append(code_cell)
         return self
 
+    def add_cell(self, cell: Cell):
+        if cell.type == CellType.MARKDOWN:
+            return self.add_markdown(cell.content)
+        if cell.type == CellType.PYTHON:
+            return self.add_code(cell.content)
+
     def save_changes(self):
         with open(self.main_ipynb_path, "w") as fl:
             nb = nbf.v4.new_notebook()
@@ -119,7 +126,7 @@ class JupyterHandler:
     def _cleanup(self):
         """Clean up by terminating the Jupyter process."""
         for proc in self.processes:
-            print("Process killed!")
+            print("Jupyter Process killed!")
             if proc and proc.poll() is None:
                 proc.terminate()
             try:

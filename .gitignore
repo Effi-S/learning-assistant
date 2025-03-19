@@ -17,3 +17,4 @@ pacer/orm/.pacer.db
 Untitled.ipynb
 .pacer.db
 .jupyter/
+.chroma_persist

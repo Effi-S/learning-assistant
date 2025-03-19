@@ -1,18 +1,17 @@
 from collections import defaultdict
 from itertools import chain
 from pathlib import Path
-from typing import Generator
+from typing import Generator, Optional
 from uuid import uuid4
 
 from langchain.schema import Document
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from pacer.models.code_cell_model import Code
+from pacer.models.code_cell_model import JupyterCells
 from pacer.models.file_model import FileEntry
 from pacer.models.project_model import ProjectData
 from pacer.orm import base
-from pacer.orm.code_orm import CodeCell
 from pacer.orm.file_orm import File, FileStatus, FileType
 from pacer.orm.note_orm import Note
 from pacer.orm.project_orm import Project
@@ -140,7 +139,7 @@ def read_sources(sources: list[FileEntry]) -> list[Document]:
     return docs
 
 
-def get_quiz(project_name: str) -> quiz_creater.Quiz:
+def get_quiz(project_name: str) -> Optional[quiz_creater.Quiz]:
     assert project_name
     with SessionLocal() as session:
         project = session.query(Project).filter(Project.name == project_name).first()
@@ -155,9 +154,9 @@ def create_quiz(project_name: str) -> quiz_creater.Quiz:
         project = session.query(Project).filter(Project.name == project_name).first()
         files = list(map(FileEntry.model_validate, project.files))
         docs = read_sources(files)
-        if "quiz" in project.data:
-            # Adds new questions
-            quiz = get_quiz(project_name=project_name)
+
+        quiz = get_quiz(project_name=project_name)
+        if quiz:
             quiz = quiz_creater.add_questions(docs, quiz)
         else:
             quiz = quiz_creater.create_quiz(docs)
@@ -176,26 +175,15 @@ def remove_quiz(project_name: str) -> None:
         session.commit()
 
 
-def create_practice(project_name: str) -> quiz_creater.Quiz:
+def create_jupyter_cells(project_name: str) -> JupyterCells:
     assert project_name
     with SessionLocal() as session:
         project = session.query(Project).filter(Project.name == project_name).first()
         files = list(map(FileEntry.model_validate, project.files))
         docs = read_sources(files)
-        quiz = quiz_creater.create_quiz(docs)
-        project.data["practice"] = quiz.model_dump_json(indent=2)
-        flag_modified(project, "data")  #  the ORM may not detect changes automatically
-        session.commit()
-        return quiz
-
-
-def get_practice(project_name: str) -> quiz_creater.Quiz:
-    assert project_name
-    with SessionLocal() as session:
-        project = session.query(Project).filter(Project.name == project_name).first()
-        q = project.data.get("practice")
-        if q:
-            return quiz_creater.Quiz.model_validate_json(q)
+        db = rag.insert_docs(docs)
+        cells: JupyterCells = rag.create_jupyter_cells(db=db)
+        return cells
 
 
 def add_note(note: str, project_name: str) -> Note:
@@ -225,60 +213,6 @@ def update_note(note: Note, new_note: str) -> Note:
         note = session.query(Note).filter(Note.id == note.id).first()  # avoid detach
         note.content = new_note
         session.commit()
-
-
-def get_codes(project_name: str) -> list[Code]:
-    with SessionLocal() as session:
-        project = session.query(Project).filter(Project.name == project_name).first()
-        if not project.code_cells:
-            project.code_cells = [CodeCell(project_id=project.id, project_ref=project)]
-        if project.code_cells[-1].code not in ("", None):
-            project.code_cells.append(
-                CodeCell(project_id=project.id, project_ref=project)
-            )
-        return [
-            Code.model_construct(c, project_ref=project) for c in project.code_cells
-        ]
-
-
-def update_code(code: Code) -> Code:
-    with SessionLocal() as session:
-        # import IPython
-
-        # IPython.embed()
-        code_cell = session.query(CodeCell).filter(CodeCell.id == code.id).first()
-
-        # -1- Create Code if it does not already exist
-        if not code_cell:
-            code_cell = CodeCell(
-                code=code.code,
-                markdown=code.markdown,
-                language=code.language,
-                output=code.output,
-                project_id=code.project_ref.id,
-            )
-            session.add(code_cell)
-            session.commit()
-            return Code.model_construct(code_cell)
-
-        # -2- If no Changes to code do nothing
-        if all(
-            (
-                code.code == code_cell.code,
-                code.markdown == code_cell.markdown,
-                code.language == code_cell.language,
-                code.output == code_cell.output,
-            )
-        ):
-            return code
-
-        # -3- Update existing code
-        code_cell.code = code_cell.code
-        code_cell.markdown = code_cell.markdown
-        code_cell.language = code_cell.language
-        code_cell.output = code_cell.output
-        session.commit()
-    return Code.model_construct(code_cell)
 
 
 def get_messages(project_name: str) -> list: ...
