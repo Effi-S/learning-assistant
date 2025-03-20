@@ -8,10 +8,12 @@ from langchain.schema import Document
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
+from pacer.config.llm_adapter import LLMSwitch
 from pacer.models.code_cell_model import JupyterCells
 from pacer.models.file_model import FileEntry
 from pacer.models.project_model import ProjectData
 from pacer.orm import base
+from pacer.orm.chat_message_orm import ChatMessage
 from pacer.orm.file_orm import File, FileStatus, FileType
 from pacer.orm.note_orm import Note
 from pacer.orm.project_orm import Project
@@ -215,12 +217,16 @@ def update_note(note: Note, new_note: str) -> Note:
         session.commit()
 
 
-def get_messages(project_name: str) -> list: ...
+def get_messages(project_name: str) -> list[ChatMessage]:
+    with SessionLocal() as session:
+        project = session.query(Project).filter(Project.name == project_name).first()
+        return project.chat_messages
 
 
-def ask(question, project_name: str, context: list[FileEntry]):
+def ask(messages, *args, llm=None, **kwargs):
     """Ask An AI Agent about a question relating to docs"""
-    ...
+    llm = llm or LLMSwitch.get_current()
+    return llm.invoke(messages, *args, **kwargs)
 
 
 if __name__ == "__main__":

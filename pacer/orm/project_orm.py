@@ -22,3 +22,6 @@ class Project(Base):
     jupyter_cells = relationship(
         "JupyterCell", back_populates="project_ref", cascade="all, delete-orphan"
     )
+    chat_messages = relationship(
+        "ChatMessage", back_populates="project_ref", cascade="all, delete-orphan"
+    )

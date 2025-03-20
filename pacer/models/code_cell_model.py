@@ -5,7 +5,6 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, Field
 
 from pacer.models.project_model import ProjectData
-from pacer.orm.jupyter_cell_orm import CellType
 
 
 class CellType(StrEnum):

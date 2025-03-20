@@ -18,7 +18,7 @@ if "edit_toggles" not in st.session_state:
     st.session_state["edit_toggles"] = {}
 
 if "messages" not in st.session_state:
-    st.session_state.messages = {}
+    st.session_state.messages = defaultdict(list)
 
 if "audios" not in st.session_state:
     st.session_state.audios = defaultdict(set)
@@ -228,20 +228,28 @@ def display_project_files(project: str = None) -> Any:
         _render_notes(project=project)
     with chat_tab:
 
-        if project not in st.session_state.messages:
-            st.session_state.messages[project] = [
-                {"role": "assistant", "content": "Ask some questions about your docs."}
-            ]
         messages = st.session_state.messages[project]
+        if not messages:
+            messages.append(
+                {"role": "ai", "content": "Ask some questions about your docs."}
+            )
         for message in messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
+        c1, c2 = st.columns([0.8, 0.2])
+        with c1:
+            if user_input := st.chat_input("Type your message..."):
+                with st.spinner("Thinking...", show_time=True):
+                    messages.append({"role": "user", "content": user_input})
+                    bot_response = services.ask(messages=messages)
+                    messages.append({"role": "ai", "content": bot_response.content})
+                    st.rerun()
+        with c2:
+            if st.button(":wastebasket: Clear Chat", key=f"{project}_clear_chat"):
+                st.session_state.messages[project] = []
+                st.rerun()
 
-        if user_input := st.chat_input("Type your message..."):
-            messages.append({"role": "user", "content": user_input})
-            bot_response = f"You said: {user_input}"  # TODO:
-            messages.append({"role": "assistant", "content": bot_response})
-            st.rerun()
+        st.json(messages, expanded=False)
 
 
 def main():
@@ -266,64 +274,63 @@ def main():
         # Section: List existing projects
         if not (projects := list_projects()):
             st.warning("No projects available. Add a new project to get started.")
-        elif selected_project := st.sidebar.selectbox("Select a Project", projects):
+            return
+        selected_project = st.sidebar.selectbox("Select a Project", projects)
 
-            # Subection: Add new Source to project
-            st.header("Add source to project")
-            if uploaded_files := st.file_uploader(
-                "Choose a file", [".pdf", ".txt"], accept_multiple_files=True
-            ):
-                if st.button("Add"):
-                    entries = [
-                        FileEntry(
-                            filepath=f.name,
-                            project_ref=ProjectData(name=selected_project),
-                            content=f.read(),
-                        )
-                        for f in uploaded_files
-                    ]
-                    with st.spinner(f"Adding ({len(entries)}) files.."):
-                        services.add_files(entries)
-                    for file in uploaded_files:
-                        st.info(f"Added file: {file.name}")
+        # Subection: Add new Source to project
+        st.header("Add source to project")
+        if uploaded_files := st.file_uploader(
+            "Choose a file", [".pdf", ".txt"], accept_multiple_files=True
+        ):
+            if st.button("Add"):
+                entries = [
+                    FileEntry(
+                        filepath=f.name,
+                        project_ref=ProjectData(name=selected_project),
+                        content=f.read(),
+                    )
+                    for f in uploaded_files
+                ]
+                with st.spinner(f"Adding ({len(entries)}) files.."):
+                    services.add_files(entries)
+                for file in uploaded_files:
+                    st.info(f"Added file: {file.name}")
 
-                        st.json(
-                            {
-                                "filename": file.name,
-                                "filetype": file.type,
-                                "filesize": file.size,
-                            },
-                            expanded=False,
-                        )
-                    st.cache_data.clear()
-            with st.form("enter_url_form"):
-                url = st.text_input("Enter URL")
-                submitted = st.form_submit_button()
-            if submitted and url:
-                with st.spinner("Adding URL.."):
-                    services.add_url(url, project_name=selected_project)
+                    st.json(
+                        {
+                            "filename": file.name,
+                            "filetype": file.type,
+                            "filesize": file.size,
+                        },
+                        expanded=False,
+                    )
                 st.cache_data.clear()
-                st.info(f"Added URL: {url}")
-
-            choice = st.selectbox(
-                "Choose LLM", options=LLMSwitch.services(), key="cllm-sb"
-            )
-            if choice != st.session_state.get("cllm-sb"):
-                st.session_state["cllm-sb"] = choice
-                LLMSwitch.switch(choice)
+        with st.form("enter_url_form"):
+            url = st.text_input("Enter URL")
+            submitted = st.form_submit_button()
+        if submitted and url:
+            with st.spinner("Adding URL.."):
+                services.add_url(url, project_name=selected_project)
+            st.cache_data.clear()
+            st.info(f"Added URL: {url}")
 
         st.divider()
         st.subheader("Live Audio Recording")
 
-        if audio_data := st_audiorec(energy_threshold=0.99):
-            choice = confirm_popup("You want to add this audio to project?")
-            if choice is not None:
-                st.success(f"Added audio file: {choice}")
-                audio_data = None
+        if audio_data := st_audiorec(energy_threshold=0.99, key="audio_rec"):
+            confirm = confirm_popup("You want to add this audio to project?")
+            if confirm:
+                st.success("Added audio file")
 
         st.divider()
 
-        for _ in range(10):
+        choice = st.selectbox("Choose LLM", options=LLMSwitch.services(), key="cllm-sb")
+        if choice != st.session_state.get("cllm-sb"):
+            st.session_state["cllm-sb"] = choice
+            LLMSwitch.switch(choice)
+        st.divider()
+
+        for _ in range(5):
             st.write("")
 
         if st.button(":wastebasket: delete project"):
