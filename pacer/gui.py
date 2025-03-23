@@ -9,6 +9,7 @@ from pacer.config.llm_adapter import LLMSwitch
 from pacer.models.code_cell_model import JupyterCells
 from pacer.models.file_model import FileEntry
 from pacer.models.project_model import ProjectData
+from pacer.orm.file_orm import FileType
 from pacer.tools.jupyter_handler import JupyterHandler
 from pacer.tools.streamlit_utils import confirm_popup
 
@@ -44,7 +45,7 @@ def _render_notes(project: str):
 
     with st.form(key=f"{project}_note_form"):
 
-        note = st.text_area("Write your note here:", key="note_input")
+        note = st.text_area("Write your note here:", key=f"{project}_note_input")
         submit_button = st.form_submit_button(label="Add Note")
 
         if submit_button and note.strip():
@@ -81,7 +82,7 @@ def _render_quiz(project: str):
         if st.button(":arrows_counterclockwise:", key=f"{project}_add_quiz_button"):
             with st.spinner("Adding Quiz.."):
                 quiz = services.create_quiz(project_name=project)
-                st.rerun()
+            st.rerun()
     if quiz:
         friendly_mode = st.checkbox("Show Answers")
         choices = []
@@ -169,6 +170,9 @@ def display_project_files(project: str = None) -> Any:
     )
     with original_tab:
         for fl in files:
+            if fl.type_ == FileType.URL:
+                st.markdown(fl.title)
+                continue
             st.subheader(fl.title)
             for doc in services.iter_read_entry(fl):
                 st.markdown(doc.page_content)
@@ -183,7 +187,7 @@ def display_project_files(project: str = None) -> Any:
                     services.add_summary_to_file(fl)
                     st.toast("Added summary to file")
                     st.cache_data.clear()
-                    st.rerun()
+                st.rerun()
             st.divider()
     with procederal_tab:
         if not files:
@@ -237,13 +241,14 @@ def display_project_files(project: str = None) -> Any:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
         c1, c2 = st.columns([0.8, 0.2])
+        st.warning("TODO: Add context capability!")
         with c1:
             if user_input := st.chat_input("Type your message..."):
                 with st.spinner("Thinking...", show_time=True):
                     messages.append({"role": "user", "content": user_input})
                     bot_response = services.ask(messages=messages)
                     messages.append({"role": "ai", "content": bot_response.content})
-                    st.rerun()
+                st.rerun()
         with c2:
             if st.button(":wastebasket: Clear Chat", key=f"{project}_clear_chat"):
                 st.session_state.messages[project] = []
@@ -261,14 +266,12 @@ def main():
         ):
             if project_add_name in list_projects():
                 st.warning(f"Project {project_add_name} already exists!")
-                st.session_state.add_proj_text_input = ""
             else:
                 st.cache_data.clear()
                 with st.spinner(f"Creating project: {[project_add_name]}.."):
                     services.add_project(project_add_name)
                 st.success(f"{project_add_name} Added!")
-                # st.balloons()
-            project_add_name = None
+                st.balloons()
         st.divider()
 
         # Section: List existing projects
@@ -317,10 +320,16 @@ def main():
         st.divider()
         st.subheader("Live Audio Recording")
 
-        if audio_data := st_audiorec(energy_threshold=0.99, key="audio_rec"):
+        if audio_data := st_audiorec(
+            energy_threshold=0.99, key=f"{selected_project}_audio_rec"
+        ):
             confirm = confirm_popup("You want to add this audio to project?")
             if confirm:
+                st.audio(audio_data)
                 st.success("Added audio file")
+            if confirm is not None:
+                st.session_state.clear()
+                st.rerun()
 
         st.divider()
 

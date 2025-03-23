@@ -226,6 +226,7 @@ def get_messages(project_name: str) -> list[ChatMessage]:
 def ask(messages, *args, llm=None, **kwargs):
     """Ask An AI Agent about a question relating to docs"""
     llm = llm or LLMSwitch.get_current()
+    # TODO: Add context
     return llm.invoke(messages, *args, **kwargs)
 
 
