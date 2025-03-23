@@ -82,7 +82,7 @@ def _render_quiz(project: str):
         if st.button(":arrows_counterclockwise:", key=f"{project}_add_quiz_button"):
             with st.spinner("Adding Quiz.."):
                 quiz = services.create_quiz(project_name=project)
-            st.rerun()
+            # st.rerun()
     if quiz:
         friendly_mode = st.checkbox("Show Answers")
         choices = []
@@ -101,7 +101,7 @@ def _render_quiz(project: str):
             if st.button("Make More"):
                 with st.spinner("Adding Questions.."):
                     services.create_quiz(project_name=project)
-                st.rerun()
+                # st.rerun()
         right, total = sum(
             1 for q, a in zip(quiz.questions, choices) if q.answer == a
         ), len(quiz.questions)
@@ -212,8 +212,8 @@ def display_project_files(project: str = None) -> Any:
                         for cell in jup.cells:
                             handler.add_cell(cell)
                     handler.save_changes()
-
-                handler.run_jupyter().render()
+                if handler.main_ipynb_path.exists():
+                    handler.run_jupyter().render()
 
                 st.divider()
     with analogous_tab:
@@ -334,9 +334,9 @@ def main():
         st.divider()
 
         choice = st.selectbox("Choose LLM", options=LLMSwitch.services(), key="cllm-sb")
-        if choice != st.session_state.get("cllm-sb"):
-            st.session_state["cllm-sb"] = choice
+        if choice:
             LLMSwitch.switch(choice)
+            # st.info(f"Current: {LLMSwitch.get_current()}")
         st.divider()
 
         for _ in range(5):

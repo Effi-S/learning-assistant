@@ -15,11 +15,10 @@ class JupyterHandler:
 
     def __init__(self, project: str, streamlit_port: int = 8502):
         self.project = project
+        project_hash = hash(project)
         self._parent = ROOT_DIR / ".jupyter"
         self._parent.mkdir(exist_ok=True)
-        self.root = self._parent / project
-        self.root.mkdir(exist_ok=True)
-        self.main_ipynb_path = self.root / f"{project}.ipynb"
+        self.main_ipynb_path = self._parent / f"{project_hash}.ipynb"
         self.processes = []
         self.port = self._port or self._find_free_port()
 
@@ -72,23 +71,19 @@ class JupyterHandler:
             return self.add_code(cell.content)
 
     def save_changes(self):
-        with open(self.main_ipynb_path, "w") as fl:
-            nb = nbf.v4.new_notebook()
-            nb["cells"] = self.cells
-            with open(self.main_ipynb_path, "w", encoding="utf-8") as fl:
-                nbf.write(nb, fl)
+        nb = nbf.v4.new_notebook()
+        nb["cells"] = self.cells
+        with open(self.main_ipynb_path, "w", encoding="utf-8") as fl:
+            nbf.write(nb, fl)
         return self
 
     def run_jupyter(self, title: str = "Practice Notebook"):
-        """Returns the URL of the uploaded file"""
 
         # --1-- Create Jupyter file
         if not self.main_ipynb_path.exists():
             self.save_changes()
 
         # Run Jupyter Notebook in the background
-        if self._port:
-            return self
         print("Running Jupyter on:", self.port)
         streamlit_port = self._find_streamlit_port()
         tornado_settings = {
@@ -109,7 +104,7 @@ class JupyterHandler:
         print("Running:\n", *cmd)
         process = subprocess.Popen(
             cmd,
-            cwd=str(self.root),  # Set working directory to project folder
+            cwd=str(self._parent),  # Set working directory to project folder
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
@@ -120,7 +115,9 @@ class JupyterHandler:
         if process.poll() is not None:
             raise RuntimeError("Failed to start Jupyter Notebook server.")
 
-        JupyterHandler._port = self.port
+        if not self._port:
+            JupyterHandler._port = self.port
+
         return self
 
     def _cleanup(self):

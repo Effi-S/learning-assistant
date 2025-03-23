@@ -20,6 +20,7 @@ from langchain.retrievers.document_compressors import (
 )
 from langchain.retrievers.multi_query import MultiQueryRetriever
 from langchain.text_splitter import CharacterTextSplitter
+from langchain_chroma import Chroma
 from langchain_community.document_loaders import (
     BSHTMLLoader,
     DirectoryLoader,
@@ -27,7 +28,6 @@ from langchain_community.document_loaders import (
     TextLoader,
     WikipediaLoader,
 )
-from langchain_community.vectorstores import Chroma
 from langchain_core.documents.base import Document
 from langchain_core.vectorstores import VectorStore
 
@@ -135,6 +135,15 @@ def read_pdf(source: Path | str) -> list[Document]:
 
 
 def split_documents(*documents: list[Document | str]) -> list[Document]:
+
+    # Usage errors
+    if not documents:
+        raise ValueError("`documents` cannot be empty")
+
+    if len(documents) == 1 and isinstance(documents[0], list):
+        documents = documents[0]
+    # --
+
     documents = [
         Document(page_content=doc) if isinstance(doc, str) else doc for doc in documents
     ]
@@ -160,6 +169,19 @@ def insert_docs(
     persist_directory = consts.ROOT_DIR / f".chroma_persist"
     if sub_dir:
         persist_directory /= sub_dir
+
+    if persist_directory.exists():
+        db = vectorsore(
+            embedding_function=embedding_function,
+            persist_directory=str(persist_directory),
+        )
+
+        existing_docs = db.get().get("documents", {})  # TODO: may not be generic enough
+        new_docs = [doc for doc in docs if doc.page_content not in existing_docs]
+        if new_docs:
+            db.add_documents(new_docs)
+
+        return db
     db = vectorsore.from_documents(
         docs, embedding_function, persist_directory=str(persist_directory)
     )
@@ -167,9 +189,7 @@ def insert_docs(
     return db
 
 
-def create_summary(
-    split_documents: list[Document], chain_type="refine", llm=None
-) -> str:
+def create_summary(split_docs: list[Document], chain_type="refine", llm=None) -> str:
     """Create a summary based on split documents
     See: https://python.langchain.com/docs/tutorials/summarization/
     Example Usage:
@@ -178,9 +198,9 @@ def create_summary(
         >>> print(create_summary(ss))
     """
     llm = llm or LLMSwitch.get_current()
-    if len(split_documents) == 1:
+    if len(split_docs) == 1:
+        doc = split_docs[0].page_content
         try:
-            doc = split_documents[0].page_content
             return llm.invoke(
                 f"Please create a detailed Summary of the following:\n{doc}"
             ).content
@@ -190,8 +210,9 @@ def create_summary(
                 f"*** Warning could not create single Doc summary:\n{e}\n"
                 "..Trying summary chain..\n*******"
             )
+            split_docs = split_documents(*split_docs)
     chain = load_summarize_chain(llm, chain_type=chain_type)
-    ret = chain.invoke(split_documents)
+    ret = chain.invoke(split_docs)
 
     # ret has `input_documents` as well but we already have that,
     # seems safe to return the output_text only
@@ -268,6 +289,12 @@ def create_jupyter_cells(
     retriever = db.as_retriever(search_kwargs={"k": 30})
     context_docs = retriever.invoke("")
     context = "\n----\n".join(doc.page_content for doc in context_docs)
+
+    if (
+        len(context) > 128_000
+    ):  # TODO: find a better way to determine context limit of LLM
+        context = create_summary(context_docs)
+
     chain = prompt | llm.with_structured_output(JupyterCells, method="function_calling")
     result = chain.invoke({"context": context})
     return result

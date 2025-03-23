@@ -183,7 +183,7 @@ def create_jupyter_cells(project_name: str) -> JupyterCells:
         project = session.query(Project).filter(Project.name == project_name).first()
         files = list(map(FileEntry.model_validate, project.files))
         docs = read_sources(files)
-        db = rag.insert_docs(docs)
+        db = rag.insert_docs(docs, sub_dir=project_name)
         cells: JupyterCells = rag.create_jupyter_cells(db=db)
         return cells
 
