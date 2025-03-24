@@ -223,11 +223,16 @@ def get_messages(project_name: str) -> list[ChatMessage]:
         return project.chat_messages
 
 
-def ask(messages, *args, llm=None, **kwargs):
+def ask(messages, context_files: list[FileEntry] = None, *args, llm=None, **kwargs):
     """Ask An AI Agent about a question relating to docs"""
     llm = llm or LLMSwitch.get_current()
-    # TODO: Add context
-    return llm.invoke(messages, *args, **kwargs)
+    if not context_files:
+        return llm.invoke(messages, *args, **kwargs)
+
+    docs = read_sources(context_files)
+    db = rag.insert_docs_non_persistant(docs=docs)
+    resp = rag.context_chat(messages=messages, db=db)
+    return resp
 
 
 if __name__ == "__main__":

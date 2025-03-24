@@ -157,13 +157,24 @@ def split_text(text: str) -> list[Document]:
     return split_documents(Document(page_content=text))
 
 
+def insert_docs_non_persistant(
+    docs: list[Document],
+    embedding_function=None,
+    vectorsore: VectorStore = Chroma,
+) -> VectorStore:
+    """Inserting previously split documents into a non persistant Vector DB"""
+    embedding_function = embedding_function or consts.DEFAULT_EMBEDDING
+    db = vectorsore.from_documents(docs, embedding_function)
+    return db
+
+
 def insert_docs(
     docs: list[Document],
     embedding_function=None,
     sub_dir: str = None,
     vectorsore: VectorStore = Chroma,
 ) -> VectorStore:
-    """Inserting previously split documents into a Chroma DB"""
+    """Inserting previously split documents into a persistant Vector DB"""
     embedding_function = embedding_function or consts.DEFAULT_EMBEDDING
 
     persist_directory = consts.ROOT_DIR / f".chroma_persist"
@@ -282,7 +293,7 @@ Base the Notebook on the following context from multiple documents:
 
 def create_jupyter_cells(
     db, llm=None, prompt_template: Optional[ChatPromptTemplate] = None
-):
+) -> JupyterCells:
     prompt = prompt_template or _code_cell_prompt
     llm = llm or LLMSwitch.get_current()
 
@@ -297,6 +308,46 @@ def create_jupyter_cells(
 
     chain = prompt | llm.with_structured_output(JupyterCells, method="function_calling")
     result = chain.invoke({"context": context})
+    return result
+
+
+_context_message_prompt = ChatPromptTemplate.from_template(
+    """
+You are an AI assistant tasked with answering questions based on the provided context.
+Please provide a clear and concise response to the following query based on the context below:
+
+Query: {query}
+
+Conversation History:
+{history}
+
+Context:
+{context}
+"""
+)
+
+
+def context_chat(
+    db,
+    messages: list = None,
+    llm=None,
+    prompt_template: Optional[ChatPromptTemplate] = None,
+):
+    prompt = prompt_template or _context_message_prompt
+    llm = llm or LLMSwitch.get_current()
+
+    retriever = db.as_retriever(search_kwargs={"k": 30})
+    context_docs = retriever.invoke("")
+    context = "\n----\n".join(doc.page_content for doc in context_docs)
+
+    if (
+        len(context) > 128_000
+    ):  # TODO: find a better way to determine context limit of LLM
+        context = create_summary(context_docs)
+
+    chain = prompt | llm
+    *history, query = [m.content for m in messages]
+    result = chain.invoke({"context": context, "query": query, "history": history})
     return result
 
 

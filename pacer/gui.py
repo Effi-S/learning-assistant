@@ -3,6 +3,7 @@ from typing import Any
 
 import streamlit as st
 from audio_recorder_streamlit import audio_recorder as st_audiorec
+from langchain.schema import AIMessage, HumanMessage, SystemMessage
 
 from pacer import services
 from pacer.config.llm_adapter import LLMSwitch
@@ -149,10 +150,10 @@ def display_project_files(project: str = None) -> Any:
         original_tab,
         summary_tab,
         procederal_tab,
-        analogous_tab,
-        conceptual_tab,
-        evidence_tab,
-        reference_tab,
+        # analogous_tab,
+        # conceptual_tab,
+        # evidence_tab,
+        # reference_tab,
         notes_tab,
         chat_tab,
     ) = st.tabs(
@@ -160,10 +161,10 @@ def display_project_files(project: str = None) -> Any:
             "Original",
             "Summary",
             "Procederal",
-            "Analogous",
-            "Conceptual ",
-            "Evidence",
-            "Reference",
+            # "Analogous",
+            # "Conceptual ",
+            # "Evidence",
+            # "Reference",
             "Notes",
             "Chat",
         ]
@@ -212,42 +213,49 @@ def display_project_files(project: str = None) -> Any:
                         for cell in jup.cells:
                             handler.add_cell(cell)
                     handler.save_changes()
-                if handler.main_ipynb_path.exists():
-                    handler.run_jupyter().render()
+
+                handler.run_jupyter().render()
 
                 st.divider()
-    with analogous_tab:
-        st.divider()
+    # with analogous_tab:
+    #     st.divider()
 
-    with conceptual_tab:
-        st.divider()
+    # with conceptual_tab:
+    #     st.divider()
 
-    with evidence_tab:
-        st.divider()
+    # with evidence_tab:
+    #     st.divider()
 
-    with reference_tab:
-        st.divider()
+    # with reference_tab:
+    #     st.divider()
 
     with notes_tab:
         _render_notes(project=project)
     with chat_tab:
 
+        st.markdown("#### Context:")
+        files = list_files(project=project)
+        context_files = [
+            file
+            for file in files
+            if st.checkbox(label=file.title, key=f"{project}_{file}_chat-choice")
+        ]
+
         messages = st.session_state.messages[project]
         if not messages:
-            messages.append(
-                {"role": "ai", "content": "Ask some questions about your docs."}
-            )
+            messages.append(AIMessage("Ask some questions about your docs."))
         for message in messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
+            with st.chat_message(message.type):
+                st.markdown(message.content)
         c1, c2 = st.columns([0.8, 0.2])
-        st.warning("TODO: Add context capability!")
         with c1:
             if user_input := st.chat_input("Type your message..."):
                 with st.spinner("Thinking...", show_time=True):
-                    messages.append({"role": "user", "content": user_input})
-                    bot_response = services.ask(messages=messages)
-                    messages.append({"role": "ai", "content": bot_response.content})
+                    messages.append(HumanMessage(user_input))
+                    bot_response = services.ask(
+                        messages=messages, context_files=context_files
+                    )
+                    messages.append(bot_response)
                 st.rerun()
         with c2:
             if st.button(":wastebasket: Clear Chat", key=f"{project}_clear_chat"):
