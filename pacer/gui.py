@@ -173,6 +173,23 @@ def display_project_files(project: str = None) -> Any:
         for fl in files:
             if fl.type_ == FileType.URL:
                 st.markdown(fl.title)
+                st.components.v1.html(
+                    f"""
+    <style>
+        iframe {{
+            width: 100%;
+            height: 300px !important;
+            min-height: 600px !important;
+            border: none;
+            background-color: #f0f0f0; /* Debug visibility */
+        }}
+    </style>
+    <iframe src="{fl.filepath}" width="100%" height="100%" frameborder="0"></iframe>
+    """,
+                    height=10_000_000,
+                    width=None,
+                )
+                st.divider()
                 continue
             st.subheader(fl.title)
             for doc in services.iter_read_entry(fl):
