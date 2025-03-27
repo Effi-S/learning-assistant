@@ -5,6 +5,7 @@ from typing import Generator, Optional
 from uuid import uuid4
 
 from langchain.schema import Document
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -25,7 +26,8 @@ SessionLocal = base.make_session()
 
 def list_projects(session: Session = None) -> list[str]:
     with SessionLocal() as session:
-        return list(chain(*session.query(Project.name).all()))
+        query = session.query(Project.name).order_by(desc(Project.created_at))
+        return list(chain(*query.all()))
 
 
 def list_files(project_name: str) -> list[FileEntry]:

@@ -1,6 +1,8 @@
 import uuid
+from datetime import datetime as dt
+from datetime import timezone
 
-from sqlalchemy import JSON, UUID, Column, String
+from sqlalchemy import JSON, UUID, Column, DateTime, String
 from sqlalchemy.orm import relationship
 
 from pacer.orm.base import Base
@@ -13,6 +15,9 @@ class Project(Base):
     )
     name = Column(String, unique=True, nullable=False)
     data = Column(JSON, default=dict)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: dt.now(timezone.utc), nullable=False
+    )
     files = relationship(
         "File", back_populates="project_ref", cascade="all, delete-orphan"
     )

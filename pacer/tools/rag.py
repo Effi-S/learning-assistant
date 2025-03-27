@@ -300,13 +300,17 @@ def create_jupyter_cells(
     retriever = db.as_retriever(search_kwargs={"k": 30})
     context_docs = retriever.invoke("")
     context = "\n----\n".join(doc.page_content for doc in context_docs)
-
+    context = context.replace("\n\n", "\n")
+    context = "\n".join(ln for ln in context.splitlines() if len(ln) > 2)
     if (
         len(context) > 128_000
     ):  # TODO: find a better way to determine context limit of LLM
         context = create_summary(context_docs)
 
     chain = prompt | llm.with_structured_output(JupyterCells, method="function_calling")
+    # import IPython
+
+    # IPython.embed(colosr="Neutral")
     result = chain.invoke({"context": context})
     return result
 

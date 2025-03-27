@@ -6,6 +6,7 @@ from audio_recorder_streamlit import audio_recorder as st_audiorec
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 
 from pacer import services
+from pacer.config import consts
 from pacer.config.llm_adapter import LLMSwitch
 from pacer.models.code_cell_model import JupyterCells
 from pacer.models.file_model import FileEntry
@@ -42,9 +43,10 @@ def list_files(project: str) -> list[FileEntry]:
     return files
 
 
+@st.fragment
 def _render_notes(project: str):
 
-    with st.form(key=f"{project}_note_form"):
+    with st.form(key=f"{project}_note_form", clear_on_submit=True):
 
         note = st.text_area("Write your note here:", key=f"{project}_note_input")
         submit_button = st.form_submit_button(label="Add Note")
@@ -76,14 +78,16 @@ def _render_notes(project: str):
                 if st.button(f":wastebasket:", key=f"del_{i}"):
                     services.remove_note(note)
                     _edit_toggles[i] = True
+                    st.rerun(scope="fragment")
 
 
+@st.fragment
 def _render_quiz(project: str):
     if not (quiz := services.get_quiz(project)):
         if st.button(":arrows_counterclockwise:", key=f"{project}_add_quiz_button"):
             with st.spinner("Adding Quiz.."):
                 quiz = services.create_quiz(project_name=project)
-            # st.rerun()
+            st.rerun(scope="fragment")
     if quiz:
         friendly_mode = st.checkbox("Show Answers")
         choices = []
@@ -102,7 +106,7 @@ def _render_quiz(project: str):
             if st.button("Make More"):
                 with st.spinner("Adding Questions.."):
                     services.create_quiz(project_name=project)
-                # st.rerun()
+                st.rerun(scope="fragment")
         right, total = sum(
             1 for q, a in zip(quiz.questions, choices) if q.answer == a
         ), len(quiz.questions)
@@ -122,9 +126,55 @@ def _render_quiz(project: str):
             if st.button("Remove All"):
                 with st.spinner("Adding Questions.."):
                     services.remove_quiz(project_name=project)
-                st.rerun()
+                st.rerun(scope="fragment")
 
     st.divider()
+
+
+@st.fragment
+def _render_summary(fl: FileEntry):
+    st.subheader(fl.title)
+    if fl.data and (summary := fl.data.get("summary")):
+        st.markdown(summary)
+    elif st.button(":arrows_counterclockwise:", key=f"{fl.id}_add_button"):
+        with st.spinner("Adding summary..", show_time=True):
+            services.add_summary_to_file(fl)
+            st.toast("Added summary to file")
+            st.cache_data.clear()
+        st.rerun(scope="fragment")
+
+
+@st.fragment
+def _render_chat(project: str):
+    st.markdown("#### Context:")
+    files = list_files(project=project)
+    context_files = [
+        file
+        for file in files
+        if st.checkbox(label=file.title, key=f"{project}_{file}_chat-choice")
+    ]
+
+    messages = st.session_state.messages[project]
+    if not messages:
+        messages.append(AIMessage("Ask some questions about your docs."))
+    for message in messages:
+        with st.chat_message(message.type):
+            st.markdown(message.content)
+    c1, c2 = st.columns([0.8, 0.2])
+    with c1:
+        if user_input := st.chat_input("Type your message..."):
+            with st.spinner("Thinking...", show_time=True):
+                messages.append(HumanMessage(user_input))
+                bot_response = services.ask(
+                    messages=messages, context_files=context_files
+                )
+                messages.append(bot_response)
+            st.rerun(scope="fragment")
+    with c2:
+        if st.button(":wastebasket: Clear Chat", key=f"{project}_clear_chat"):
+            st.session_state.messages[project] = []
+            st.rerun(scope="fragment")
+    st.json(messages, expanded=False)
 
 
 def display_project_files(project: str = None) -> Any:
@@ -173,39 +223,20 @@ def display_project_files(project: str = None) -> Any:
         for fl in files:
             if fl.type_ == FileType.URL:
                 st.markdown(fl.title)
-                st.components.v1.html(
-                    f"""
-    <style>
-        iframe {{
-            width: 100%;
-            height: 300px !important;
-            min-height: 600px !important;
-            border: none;
-            background-color: #f0f0f0; /* Debug visibility */
-        }}
-    </style>
-    <iframe src="{fl.filepath}" width="100%" height="100%" frameborder="0"></iframe>
-    """,
-                    height=10_000_000,
-                    width=None,
+                st.markdown(
+                    consts.iframe.format(fl.filepath),
+                    unsafe_allow_html=True,
                 )
-                st.divider()
-                continue
-            st.subheader(fl.title)
-            for doc in services.iter_read_entry(fl):
-                st.markdown(doc.page_content)
+            else:
+                st.subheader(fl.title)
+                for i, doc in enumerate(services.iter_read_entry(fl)):
+                    title = "".join(doc.page_content.splitlines()[:1])
+                    with st.expander(f"{i}: {title}", expanded=False):
+                        st.markdown(doc.page_content)
                 st.divider()
     with summary_tab:
         for fl in files:
-            st.subheader(fl.title)
-            if fl.data and (summary := fl.data.get("summary")):
-                st.markdown(summary)
-            elif st.button(":arrows_counterclockwise:", key=f"{fl.id}_add_button"):
-                with st.spinner("Adding summary..", show_time=True):
-                    services.add_summary_to_file(fl)
-                    st.toast("Added summary to file")
-                    st.cache_data.clear()
-                st.rerun()
+            _render_summary(fl)
             st.divider()
     with procederal_tab:
         if not files:
@@ -249,131 +280,124 @@ def display_project_files(project: str = None) -> Any:
     with notes_tab:
         _render_notes(project=project)
     with chat_tab:
+        _render_chat(project)
 
-        st.markdown("#### Context:")
-        files = list_files(project=project)
-        context_files = [
-            file
-            for file in files
-            if st.checkbox(label=file.title, key=f"{project}_{file}_chat-choice")
-        ]
 
-        messages = st.session_state.messages[project]
-        if not messages:
-            messages.append(AIMessage("Ask some questions about your docs."))
-        for message in messages:
-            with st.chat_message(message.type):
-                st.markdown(message.content)
-        c1, c2 = st.columns([0.8, 0.2])
-        with c1:
-            if user_input := st.chat_input("Type your message..."):
-                with st.spinner("Thinking...", show_time=True):
-                    messages.append(HumanMessage(user_input))
-                    bot_response = services.ask(
-                        messages=messages, context_files=context_files
-                    )
-                    messages.append(bot_response)
-                st.rerun()
-        with c2:
-            if st.button(":wastebasket: Clear Chat", key=f"{project}_clear_chat"):
-                st.session_state.messages[project] = []
-                st.rerun()
+def _add_proj(project_add_name: str):
 
-        st.json(messages, expanded=False)
+    if not project_add_name:
+        return
+
+    if project_add_name in list_projects():
+        return st.warning(f"Project {project_add_name} already exists!")
+
+    with st.spinner(f"Creating project: {[project_add_name]}.."):
+        services.add_project(project_add_name)
+    st.cache_data.clear()
+    st.success(f"{project_add_name} Added!")
+    st.balloons()
+
+
+@st.fragment
+def _render_sidebar():
+    # Section Add Project
+    with st.form(key="add_proj_form", clear_on_submit=True):
+        project_add_name = st.text_input(
+            "Add New Project",
+            key="add_proj_text_input",
+        )
+        if st.form_submit_button("Add Project"):
+            _add_proj(project_add_name=project_add_name)
+    # if project_add_name := st.text_input(
+    #     "Add New Project", key="add_proj_text_input"
+    # ):
+    #     if project_add_name in list_projects():
+    #         st.warning(f"Project {project_add_name} already exists!")
+    #     else:
+    #         st.cache_data.clear()
+    #         with st.spinner(f"Creating project: {[project_add_name]}.."):
+    #             services.add_project(project_add_name)
+    #         st.success(f"{project_add_name} Added!")
+    #         st.balloons()
+    st.divider()
+
+    # Section: List existing projects
+    if not (projects := list_projects()):
+        st.warning("No projects available. Add a new project to get started.")
+        return
+    selected_project = st.selectbox("Select a Project", projects)
+
+    # Subection: Add new Source to project
+    st.header("Add source to project")
+    if uploaded_files := st.file_uploader(
+        "Choose a file", [".pdf", ".txt"], accept_multiple_files=True
+    ):
+        if st.button("Add"):
+            entries = [
+                FileEntry(
+                    filepath=f.name,
+                    project_ref=ProjectData(name=selected_project),
+                    content=f.read(),
+                )
+                for f in uploaded_files
+            ]
+            with st.spinner(f"Adding ({len(entries)}) files.."):
+                services.add_files(entries)
+            for file in uploaded_files:
+                st.info(f"Added file: {file.name}")
+
+                st.json(
+                    {
+                        "filename": file.name,
+                        "filetype": file.type,
+                        "filesize": file.size,
+                    },
+                    expanded=False,
+                )
+            st.cache_data.clear()
+    with st.form("enter_url_form"):
+        url = st.text_input("Enter URL")
+        submitted = st.form_submit_button()
+    if submitted and url:
+        with st.spinner("Adding URL.."):
+            services.add_url(url, project_name=selected_project)
+        st.cache_data.clear()
+        st.info(f"Added URL: {url}")
+
+    st.divider()
+
+    choice = st.selectbox("Choose LLM", options=LLMSwitch.services(), key="cllm-sb")
+    if choice:
+        LLMSwitch.switch(choice)
+        # st.info(f"Current: {LLMSwitch.get_current()}")
+    st.divider()
+    if audio_data := st_audiorec(
+        text="",
+        icon_size="2x",
+        energy_threshold=0.99,
+        key=f"{selected_project}_audio_rec",
+    ):
+
+        confirm = confirm_popup("You want to add this audio to project?")
+        if confirm:
+            st.audio(audio_data)
+            st.success("Added audio file")
+        if confirm is not None:
+            st.session_state.clear()
+            st.rerun(scope="fragment")
+    st.divider()
+
+    if st.button(":wastebasket: delete project"):
+        services.delete_project(selected_project)
+        st.cache_data.clear()
+        st.rerun()
+    return selected_project
 
 
 def main():
     """ """
     with st.sidebar:
-        # Section Add Project
-        if project_add_name := st.text_input(
-            "Add New Project", key="add_proj_text_input"
-        ):
-            if project_add_name in list_projects():
-                st.warning(f"Project {project_add_name} already exists!")
-            else:
-                st.cache_data.clear()
-                with st.spinner(f"Creating project: {[project_add_name]}.."):
-                    services.add_project(project_add_name)
-                st.success(f"{project_add_name} Added!")
-                st.balloons()
-        st.divider()
-
-        # Section: List existing projects
-        if not (projects := list_projects()):
-            st.warning("No projects available. Add a new project to get started.")
-            return
-        selected_project = st.sidebar.selectbox("Select a Project", projects)
-
-        # Subection: Add new Source to project
-        st.header("Add source to project")
-        if uploaded_files := st.file_uploader(
-            "Choose a file", [".pdf", ".txt"], accept_multiple_files=True
-        ):
-            if st.button("Add"):
-                entries = [
-                    FileEntry(
-                        filepath=f.name,
-                        project_ref=ProjectData(name=selected_project),
-                        content=f.read(),
-                    )
-                    for f in uploaded_files
-                ]
-                with st.spinner(f"Adding ({len(entries)}) files.."):
-                    services.add_files(entries)
-                for file in uploaded_files:
-                    st.info(f"Added file: {file.name}")
-
-                    st.json(
-                        {
-                            "filename": file.name,
-                            "filetype": file.type,
-                            "filesize": file.size,
-                        },
-                        expanded=False,
-                    )
-                st.cache_data.clear()
-        with st.form("enter_url_form"):
-            url = st.text_input("Enter URL")
-            submitted = st.form_submit_button()
-        if submitted and url:
-            with st.spinner("Adding URL.."):
-                services.add_url(url, project_name=selected_project)
-            st.cache_data.clear()
-            st.info(f"Added URL: {url}")
-
-        st.divider()
-        st.subheader("Live Audio Recording")
-
-        if audio_data := st_audiorec(
-            energy_threshold=0.99, key=f"{selected_project}_audio_rec"
-        ):
-            confirm = confirm_popup("You want to add this audio to project?")
-            if confirm:
-                st.audio(audio_data)
-                st.success("Added audio file")
-            if confirm is not None:
-                st.session_state.clear()
-                st.rerun()
-
-        st.divider()
-
-        choice = st.selectbox("Choose LLM", options=LLMSwitch.services(), key="cllm-sb")
-        if choice:
-            LLMSwitch.switch(choice)
-            # st.info(f"Current: {LLMSwitch.get_current()}")
-        st.divider()
-
-        for _ in range(5):
-            st.write("")
-
-        if st.button(":wastebasket: delete project"):
-            services.delete_project(selected_project)
-            st.cache_data.clear()
-            st.rerun()
-        st.divider()
-
-    # Main Section:
+        selected_project = _render_sidebar()
     display_project_files(selected_project)
 
 
