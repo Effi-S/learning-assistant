@@ -27,7 +27,7 @@ class JupyterHandler:
 
         self.url = f"http://localhost:{self.port}/notebooks/{self.main_ipynb_path.name}"
         atexit.register(self._cleanup)
-        self.cells = []
+        self.cells: list[nbf.NotebookNode] = []
         if self.main_ipynb_path.exists():
             with open(self.main_ipynb_path) as fl:
                 nb = nbf.read(fl, as_version=4)
@@ -65,6 +65,9 @@ class JupyterHandler:
             f"No used Streamlit ports found in range {start_port} - {start_port + max_attempts - 1}."
         )
 
+    def is_empty(self) -> bool:
+        return not any(cell.get("source") for cell in self.cells)
+
     def add_markdown(self, markdown: str):
         markdown_cell = nbf.v4.new_markdown_cell(markdown)
         self.cells.append(markdown_cell)
@@ -78,8 +81,9 @@ class JupyterHandler:
     def add_cell(self, cell: Cell):
         if cell.type == CellType.MARKDOWN:
             return self.add_markdown(cell.content)
-        if cell.type == CellType.PYTHON:
+        if cell.type in (CellType.PYTHON, CellType.CODE):
             return self.add_code(cell.content)
+        raise NotImplementedError(f"CellType: {cell.type}")
 
     def save_changes(self):
         nb = nbf.v4.new_notebook()
@@ -145,22 +149,27 @@ class JupyterHandler:
 
     def render(self):
         st.write(f"URL: {self.url}")
-        st.components.v1.html(
+        # background-color: #f0f0f0; /* Debug visibility */
+        st.markdown(
             f"""
     <style>
+    body {{                                                                                                                                      
+             background-color: #121212; /* Dark background for the whole page */                                                                      
+             color: #e0e0e0; /* Light text for readability */                                                                                         
+         }}
         iframe {{
             width: 100%;
             height: 100% !important;
-            min-height: 1000px !important;
+            min-height: 5000px !important;
             border: none;
-            background-color: #f0f0f0; /* Debug visibility */
+            background-color: #1e1e1e; /* Dark background for iframe */ 
         }}
     </style>
     <iframe src="{self.url}" width="100%" height="100%" frameborder="0"></iframe>
     """,
-            height=10_000,
-            width=None,
+            unsafe_allow_html=True,
         )
+        st.write(f"URL: {self.url}")
         return self
 
 

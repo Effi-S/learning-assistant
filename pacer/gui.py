@@ -132,16 +132,50 @@ def _render_quiz(project: str):
 
 
 @st.fragment
+def _render_jupyter(project: str):
+    if project not in st.session_state.jupyter_handles:
+        st.session_state.jupyter_handles[project] = JupyterHandler(project=project)
+
+    handler: JupyterHandler = st.session_state.jupyter_handles[project]
+
+    if handler.is_empty() and st.button("Generate", key=f"{project}_jupyter-generate"):
+        with st.spinner("Generating Notebook..", show_time=True):
+            jup: JupyterCells = services.create_jupyter_cells(project_name=project)
+            for cell in jup.cells:
+                handler.add_cell(cell)
+        handler.save_changes()
+
+    if not handler.is_empty():
+        st.divider()
+        if user_input := st.chat_input("Type changes to make to the Notebook..."):
+            with st.spinner("Generating Notebook..", show_time=True):
+                jup: JupyterCells = services.update_jupyter_cells(
+                    project_name=project,
+                    cells=JupyterCells.from_nodes(nodes=handler.cells),
+                    update=user_input,
+                )
+                for cell in jup.cells:
+                    handler.add_cell(cell)
+                handler.save_changes()
+            st.rerun(scope="fragment")
+        st.divider()
+
+    handler.run_jupyter().render()
+
+    st.divider()
+
+
+@st.fragment
 def _render_summary(fl: FileEntry):
     st.subheader(fl.title)
     if fl.data and (summary := fl.data.get("summary")):
         st.markdown(summary)
     elif st.button(":arrows_counterclockwise:", key=f"{fl.id}_add_button"):
-        with st.spinner("Adding summary..", show_time=True):
-            services.add_summary_to_file(fl)
-            st.toast("Added summary to file")
-            st.cache_data.clear()
-        st.rerun(scope="fragment")
+        with st.container():
+            with st.spinner("Adding summary..", show_time=True):
+                services.add_summary_to_file(fl)
+                st.toast("Added summary to file")
+                st.rerun(scope="fragment")
 
 
 @st.fragment
@@ -163,8 +197,8 @@ def _render_chat(project: str):
     c1, c2 = st.columns([0.8, 0.2])
     with c1:
         if user_input := st.chat_input("Type your message..."):
+            messages.append(HumanMessage(user_input))
             with st.spinner("Thinking...", show_time=True):
-                messages.append(HumanMessage(user_input))
                 bot_response = services.ask(
                     messages=messages, context_files=context_files
                 )
@@ -179,6 +213,7 @@ def _render_chat(project: str):
 
 def display_project_files(project: str = None) -> Any:
     """Display the list of files in a project and available actions."""
+    project = project or st.session_state.get("selected_project")
     if not project:
         return st.warning("Please Choose a project in the sidebar")
     st.subheader(project)
@@ -247,24 +282,8 @@ def display_project_files(project: str = None) -> Any:
             with quiz_tab:
                 _render_quiz(project=project)
             with practice_tab:
-                if project not in st.session_state.jupyter_handles:
-                    st.session_state.jupyter_handles[project] = JupyterHandler(
-                        project=project
-                    )
+                _render_jupyter(project)
 
-                handler: JupyterHandler = st.session_state.jupyter_handles[project]
-                if st.button("Generate", key=f"{project}_jupyter-generate"):
-                    with st.spinner("Generating Notebook..", show_time=True):
-                        jup: JupyterCells = services.create_jupyter_cells(
-                            project_name=project
-                        )
-                        for cell in jup.cells:
-                            handler.add_cell(cell)
-                    handler.save_changes()
-
-                handler.run_jupyter().render()
-
-                st.divider()
     # with analogous_tab:
     #     st.divider()
 
@@ -298,34 +317,28 @@ def _add_proj(project_add_name: str):
     st.balloons()
 
 
-@st.fragment
 def _render_sidebar():
     # Section Add Project
     with st.form(key="add_proj_form", clear_on_submit=True):
+
         project_add_name = st.text_input(
-            "Add New Project",
+            "New Project",
+            placeholder="Create a New Project",
+            label_visibility="collapsed",
             key="add_proj_text_input",
         )
-        if st.form_submit_button("Add Project"):
+        if st.form_submit_button("Add", type="secondary"):
             _add_proj(project_add_name=project_add_name)
-    # if project_add_name := st.text_input(
-    #     "Add New Project", key="add_proj_text_input"
-    # ):
-    #     if project_add_name in list_projects():
-    #         st.warning(f"Project {project_add_name} already exists!")
-    #     else:
-    #         st.cache_data.clear()
-    #         with st.spinner(f"Creating project: {[project_add_name]}.."):
-    #             services.add_project(project_add_name)
-    #         st.success(f"{project_add_name} Added!")
-    #         st.balloons()
-    st.divider()
+
+    # st.divider()
 
     # Section: List existing projects
     if not (projects := list_projects()):
         st.warning("No projects available. Add a new project to get started.")
         return
-    selected_project = st.selectbox("Select a Project", projects)
+    selected_project = st.selectbox(
+        "Select a Project", projects, key="selected_project"
+    )
 
     # Subection: Add new Source to project
     st.header("Add source to project")
@@ -384,21 +397,20 @@ def _render_sidebar():
             st.success("Added audio file")
         if confirm is not None:
             st.session_state.clear()
-            st.rerun(scope="fragment")
+            st.rerun()
     st.divider()
 
     if st.button(":wastebasket: delete project"):
         services.delete_project(selected_project)
         st.cache_data.clear()
         st.rerun()
-    return selected_project
 
 
 def main():
     """ """
     with st.sidebar:
-        selected_project = _render_sidebar()
-    display_project_files(selected_project)
+        _render_sidebar()
+    display_project_files()
 
 
 if __name__ == "__main__":

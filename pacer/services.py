@@ -77,7 +77,7 @@ def add_url(url: str, project_name: str) -> list[File]:
             content=doc.page_content,
             filepath=url,
             type=FileType.URL,
-            data={"title": doc.metadata["title"]},
+            data=doc.metadata,
             project_ref=ProjectData(name=project_name),
         )
         for doc in docs
@@ -120,7 +120,7 @@ def add_summary_to_file(file_entry: FileEntry):
         file = session.query(File).filter(File.id == str(file_entry.id)).one()
         if not file.data:
             file.data = {}
-        file.data["summary"] = str(summary)
+        file_entry.data["summary"] = file.data["summary"] = str(summary)
         flag_modified(file, "data")  #  the ORM may not detect changes automatically
         session.commit()
 
@@ -187,6 +187,21 @@ def create_jupyter_cells(project_name: str) -> JupyterCells:
         docs = read_sources(files)
         db = rag.insert_docs(docs, sub_dir=project_name)
         cells: JupyterCells = rag.create_jupyter_cells(db=db)
+        return cells
+
+
+def update_jupyter_cells(
+    project_name: str, cells: JupyterCells, update: str
+) -> JupyterCells:
+    assert project_name
+    with SessionLocal() as session:
+        project = session.query(Project).filter(Project.name == project_name).first()
+        files = list(map(FileEntry.model_validate, project.files))
+        docs = read_sources(files)
+        db = rag.insert_docs(docs, sub_dir=project_name)
+        cells: JupyterCells = rag.update_jupyter_cells(
+            db=db, notebook_cells=cells, user_message=update
+        )
         return cells
 
 

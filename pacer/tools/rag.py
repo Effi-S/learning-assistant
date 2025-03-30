@@ -271,22 +271,14 @@ def compress_and_ask(question: str, db, llm=None) -> list[Document]:
     return compressed_docs
 
 
-_subject_filter_prompt = ChatPromptTemplate.from_template(
-    """Given the following context:
-{context}
-
-List in bullet points the practical code that a student reading this article should learn.
-If you cannot find any code, leave this empty."""
-)
-
 _code_cell_prompt = ChatPromptTemplate.from_template(
     """
 Create a Jupyter Notebook that can help practice coding.
-Prefer adding Markdown Cells to explain the over comments in the code.
+Utilize Markdown Cells to explain the code instead of relying on code comments.
+Add theory and linked sources to the markdown cells.
+So all subjects are addressed, make the Notebook as long as needed.
 Base the Notebook on the following context from multiple documents:
 {context}
-
-
 """
 )
 
@@ -295,6 +287,10 @@ def create_jupyter_cells(
     db, llm=None, prompt_template: Optional[ChatPromptTemplate] = None
 ) -> JupyterCells:
     prompt = prompt_template or _code_cell_prompt
+
+    if isinstance(prompt, str):
+        prompt = ChatPromptTemplate.from_template(prompt)
+
     llm = llm or LLMSwitch.get_current()
 
     retriever = db.as_retriever(search_kwargs={"k": 30})
@@ -309,10 +305,35 @@ def create_jupyter_cells(
 
     chain = prompt | llm.with_structured_output(JupyterCells, method="function_calling")
     # import IPython
-
     # IPython.embed(colosr="Neutral")
     result = chain.invoke({"context": context})
     return result
+
+
+_update_code_cell_prompt = ChatPromptTemplate.from_template(
+    """
+You are tasked with adding cells to following Jupyter Notebook:
+{cells}
+
+Add cells that meet the following criteria:
+{changes}
+
+The Notebook is based on the following context from multiple documents:
+{context}
+"""
+)
+
+
+def update_jupyter_cells(
+    db, user_message: str, notebook_cells: JupyterCells, llm=None, *args, **kwargs
+) -> JupyterCells:
+    assert isinstance(user_message, str), f"{type(user_message)}\n{dir(user_message)}"
+    notebook_cells.model_dump_json(include=["type", "content"], indent=2)
+    prompt = _update_code_cell_prompt.partial(
+        cells=notebook_cells, changes=user_message
+    )
+
+    return create_jupyter_cells(db=db, llm=llm, prompt_template=prompt, *args, **kwargs)
 
 
 _context_message_prompt = ChatPromptTemplate.from_template(
