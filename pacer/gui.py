@@ -1,3 +1,4 @@
+import base64
 from collections import defaultdict
 from typing import Any
 
@@ -7,7 +8,7 @@ from langchain.schema import AIMessage, HumanMessage, SystemMessage
 
 from pacer import services
 from pacer.config import consts
-from pacer.config.llm_adapter import LLMSwitch
+from pacer.llms.llm_adapter import LLMSwitch
 from pacer.models.code_cell_model import JupyterCells
 from pacer.models.file_model import FileEntry
 from pacer.models.project_model import ProjectData
@@ -157,6 +158,8 @@ def _render_jupyter(project: str):
                 for cell in jup.cells:
                     handler.add_cell(cell)
                 handler.save_changes()
+            st.info("Added cells:")
+            st.json(jup.model_dump_json(indent=2), expanded=False)
             st.rerun(scope="fragment")
         st.divider()
 
@@ -258,10 +261,14 @@ def display_project_files(project: str = None) -> Any:
         for fl in files:
             if fl.type_ == FileType.URL:
                 st.markdown(fl.title)
-                st.markdown(
-                    consts.iframe.format(fl.filepath),
-                    unsafe_allow_html=True,
-                )
+                with st.expander("Site Preview"):
+                    site_iframe = consts.iframe.format(fl.filepath)
+                    st.markdown(site_iframe, unsafe_allow_html=True)
+            elif fl.type_ == FileType.PDF:
+                st.subheader(fl.title)
+                with st.expander("PDF Preview"):
+                    pdf_iframe = consts.pdf_iframe.format(fl.content)
+                    st.markdown(pdf_iframe, unsafe_allow_html=True)
             else:
                 st.subheader(fl.title)
                 for i, doc in enumerate(services.iter_read_entry(fl)):

@@ -2,7 +2,7 @@ from langchain.prompts import PromptTemplate
 from langchain.schema import Document
 from pydantic import BaseModel, Field, field_validator
 
-from pacer.config.llm_adapter import LLMSwitch
+from pacer.llms.llm_adapter import LLMSwitch
 from pacer.tools import rag
 
 quiz_prompt = PromptTemplate(

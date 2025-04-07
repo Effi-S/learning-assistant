@@ -25,3 +25,6 @@ iframe = """
     </style>
     <iframe src="{}" width="100%" height="100%" frameborder="0"></iframe>
     """
+pdf_iframe = """
+<iframe src="data:application/pdf;base64,{}" type="application/pdf"</iframe>
+"""

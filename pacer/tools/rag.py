@@ -33,7 +33,7 @@ from langchain_core.vectorstores import VectorStore
 
 # from pacer.config import consts
 from pacer.config import consts
-from pacer.config.llm_adapter import LLMSwitch
+from pacer.llms.llm_adapter import LLMSwitch
 from pacer.models.code_cell_model import JupyterCells
 
 assert dotenv.load_dotenv(consts.ENV)
