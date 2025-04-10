@@ -1,4 +1,5 @@
 import base64
+import time
 from collections import defaultdict
 from typing import Any
 
@@ -16,7 +17,7 @@ from pacer.orm.file_orm import FileType
 from pacer.tools.jupyter_handler import JupyterHandler
 from pacer.tools.streamlit_utils import confirm_popup
 
-st.set_page_config(layout="wide", page_icon=":placard:", page_title="PACER")
+st.set_page_config(layout="wide", page_icon=":material/school:", page_title="PACER")
 
 if "edit_toggles" not in st.session_state:
     st.session_state["edit_toggles"] = {}
@@ -50,11 +51,13 @@ def _render_notes(project: str):
     with st.form(key=f"{project}_note_form", clear_on_submit=True):
 
         note = st.text_area("Write your note here:", key=f"{project}_note_input")
-        submit_button = st.form_submit_button(label="Add Note")
+        submit_button = st.form_submit_button(
+            label="Add Note", icon=":material/note_add:"
+        )
 
         if submit_button and note.strip():
             services.add_note(note, project)
-            st.success("Note added!")
+            st.toast("Note Added", icon=":material/sticky_note:")
 
     st.divider()
     st.markdown("**Your Notes:**\n\n")
@@ -71,12 +74,14 @@ def _render_notes(project: str):
                     if st.button("Update", key=f"update_note_{i}"):
                         services.update_note(note, note_edit)
                         _edit_toggles[i] = False
-                        st.rerun()
+                        st.rerun(scope="fragment")
             else:
                 with _c1:
                     st.markdown(note.content)
             with _c3:
-                if st.button(f":wastebasket:", key=f"del_{i}"):
+                if st.button(
+                    label="", key=f"del_{i}", icon=":material/delete_forever:"
+                ):
                     services.remove_note(note)
                     _edit_toggles[i] = True
                     st.rerun(scope="fragment")
@@ -208,7 +213,9 @@ def _render_chat(project: str):
                 messages.append(bot_response)
             st.rerun(scope="fragment")
     with c2:
-        if st.button(":wastebasket: Clear Chat", key=f"{project}_clear_chat"):
+        if st.button(
+            "Clear Chat", key=f"{project}_clear_chat", icon=":material/delete_forever:"
+        ):
             st.session_state.messages[project] = []
             st.rerun(scope="fragment")
     st.json(messages, expanded=False)
@@ -229,7 +236,7 @@ def display_project_files(project: str = None) -> Any:
         with c1:
             st.markdown(f"> {fl.title}")
         with c2:
-            if st.button(":wastebasket:", key=f"{fl.id}_remove_button"):
+            if st.button("", key=f"{fl.id}_remove_button", icon=":material/clear:"):
                 services.delete_file(fl)
                 st.cache_data.clear()
                 st.rerun()
@@ -319,9 +326,9 @@ def _add_proj(project_add_name: str):
 
     with st.spinner(f"Creating project: {[project_add_name]}.."):
         services.add_project(project_add_name)
+        st.toast(f"{project_add_name} Added!")
+        st.balloons()
     st.cache_data.clear()
-    st.success(f"{project_add_name} Added!")
-    st.balloons()
 
 
 def _render_sidebar():
@@ -407,7 +414,7 @@ def _render_sidebar():
             st.rerun()
     st.divider()
 
-    if st.button(":wastebasket: delete project"):
+    if st.button("delete project", icon=":material/delete_forever:"):
         services.delete_project(selected_project)
         st.cache_data.clear()
         st.rerun()
